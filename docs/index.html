@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>예브 챌린지 · 9개 블로그 1주 챌린지</title>
+<meta name="theme-color" content="#FAF5EF">
+<meta name="description" content="예지브러리 예브의 9개 블로그 1주 챌린지 대시보드">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<!-- ─────────── 잠금 화면 ─────────── -->
+<div id="lock" class="lock">
+  <div class="lock-card">
+    <div class="lock-logo">🏆</div>
+    <h1>예브 챌린지</h1>
+    <p class="lock-sub">9개 블로그 1주 챌린지 대시보드</p>
+    <div class="pin-dots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+    <p class="lock-msg" id="lockMsg"></p>
+    <div class="keypad" id="keypad">
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+      <button class="fn" data-k="clear">지우기</button><button data-k="0">0</button><button class="fn" data-k="back">⌫</button>
+    </div>
+    <p class="lock-foot">예닝 오피스와 같은 PIN 으로 열립니다</p>
+  </div>
+</div>
+
+<!-- ─────────── 앱 ─────────── -->
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="topbar-in">
+      <div class="brand"><span class="trophy">🏆</span> 예브 챌린지 <small>9개 블로그 1주 챌린지</small></div>
+      <nav class="nav" id="nav">
+        <button data-tab="home" class="on">홈</button>
+        <button data-tab="challenge">챌린지 현황</button>
+        <button data-tab="materials">오늘의 소재</button>
+        <button data-tab="merge">이미지 합성</button>
+      </nav>
+      <div class="topbar-right">
+        <span class="sync-chip" id="syncChip"><span class="dot"></span><span id="syncText">연결 확인 중</span></span>
+        <button class="icon-btn" id="btnSettings" title="동기화 설정">⚙️</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="view" id="view-home"></section>
+    <section class="view hidden" id="view-challenge"></section>
+    <section class="view hidden" id="view-materials"></section>
+    <section class="view hidden" id="view-merge">
+      <div class="sec">
+        <div class="hero" style="padding:18px 20px">
+          <div class="hero-top">
+            <div class="avatar">🖼️</div>
+            <div>
+              <h2>이미지 합성</h2>
+              <div class="hero-sub">사진 두 장을 나란히 붙여 대표 이미지를 만듭니다 · 전부 브라우저 안에서만 처리</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec card card-pad">
+        <div class="mg-grid">
+          <div>
+            <div class="mg-drop" id="dropL" data-side="L">
+              <div class="ic">🖼️</div><div class="t">왼쪽 사진</div>
+              <div class="s">클릭 · 끌어다 놓기 · 붙여넣기(Ctrl+V)</div>
+            </div>
+            <div class="mg-controls"><span>확대</span><input type="range" id="zoomL" min="1" max="3" step="0.01" value="1"><span id="zoomLv">100%</span></div>
+            <div class="mg-controls"><span>좌우</span><input type="range" id="posXL" min="-50" max="50" step="1" value="0"><span>위아래</span><input type="range" id="posYL" min="-50" max="50" step="1" value="0"></div>
+            <button class="btn soft sm block" id="resetL" style="margin-top:6px">왼쪽 초기화</button>
+          </div>
+          <div>
+            <div class="mg-drop" id="dropR" data-side="R">
+              <div class="ic">🖼️</div><div class="t">오른쪽 사진</div>
+              <div class="s">클릭 · 끌어다 놓기 · 붙여넣기(Ctrl+V)</div>
+            </div>
+            <div class="mg-controls"><span>확대</span><input type="range" id="zoomR" min="1" max="3" step="0.01" value="1"><span id="zoomRv">100%</span></div>
+            <div class="mg-controls"><span>좌우</span><input type="range" id="posXR" min="-50" max="50" step="1" value="0"><span>위아래</span><input type="range" id="posYR" min="-50" max="50" step="1" value="0"></div>
+            <button class="btn soft sm block" id="resetR" style="margin-top:6px">오른쪽 초기화</button>
+          </div>
+        </div>
+
+        <div class="mg-controls" style="margin-top:14px;gap:12px;flex-wrap:wrap">
+          <span style="font-weight:800">크기</span>
+          <select id="mgSize" style="padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--cream);font-weight:700">
+            <option value="1200x800">가로 3:2 (1200×800)</option>
+            <option value="1000x1000">정사각 1:1 (1000×1000)</option>
+            <option value="900x1200">세로 3:4 (900×1200)</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px">
+            <input type="checkbox" id="mgLine" checked style="width:16px;height:16px;accent-color:#C88189"> 가운데 흰 줄
+          </label>
+        </div>
+
+        <div class="mg-canvas-wrap"><canvas id="mgCanvas" width="1200" height="800"></canvas></div>
+
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn" id="mgSavePng">이미지 저장 (PNG)</button>
+          <button class="btn ghost" id="mgSaveJpg">JPG 저장</button>
+          <button class="btn soft" id="mgClear">비우기</button>
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);margin-top:8px">사진은 서버로 올라가지 않습니다. 화면에서만 합성돼요.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ─────────── 시트 ─────────── -->
+<div class="sheet-back" id="sheetBack"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-grip"></div>
+  <div class="sheet-head"><h3 id="sheetTitle">제목</h3><button class="cl" id="sheetClose">✕</button></div>
+  <div class="sheet-body" id="sheetBody"></div>
+  <div class="sheet-foot hidden" id="sheetFoot"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<input type="file" id="filePicker" accept="image/*" class="hidden">
+<script src="assets/app.js"></script>
+</body>
+</html>
