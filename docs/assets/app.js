@@ -1037,8 +1037,14 @@ function renderMaterials() {
       </div>
     </div>
 
-    ${matBody(tab, date)}
+    <div class="mat-split">
+      <div class="mat-main">${matBody(tab, date)}</div>
+      <aside class="mat-side" id="scorerSlot">
+        <button class="mat-jump" data-go="scorer"><span>🎯 홈판 제목 점수기</span><span>내 제목 채점 →</span></button>
+      </aside>
+    </div>
   `;
+  mountScorer('#scorerSlot');
 }
 
 function matBody(tab, date) {
@@ -1099,6 +1105,282 @@ function matBody(tab, date) {
       </div>`;
   }).join('')}
     </div>`;
+}
+
+/* ───────────────────────── 🎯 홈판 제목 점수기 ─────────────────────────
+   6기 홈판 제목 원칙을 그대로 점수화한다. API 호출 없음 · 브라우저 안에서만 계산.
+   (1) 앞부분 후킹 40 · (2) 구체성 25 · (3) 검색형·구조 20 · (4) 길이 15 = 100 */
+/* ==== SCORER-CORE BEGIN ==== */
+const TS_DICT = {
+  EMO: ['실화', '충격', '대박', '헐', '이걸', '아직도', '데려오세요', '모르고', '몰랐', '진짜', '솔직히', '결국', '레전드', '미쳤', '말아요', '했더니', '인 줄', '줄 알았', '어떻게', '하더라', '터졌', '난리', '폭로', '해명', '바꿨', '뜯었', '그만', '드러난', '고백', '경악', '소름', '눈물', '포기', '후회', '논란', '역대급', '사라진', '사라졌', '맛없', '말도 안', '이 가격', '드디어', '결말', '공개', '놓치', '날립', '손해', '비싼', '무료', '공짜', '반값', '걸렸'],
+  CONTR: ['에서', '부터', '까지', '만에', '→', 'vs', 'VS', '대비', '반대로', '아니라', '전과 후', 'before', 'after'],
+  SEARCH: ['맛집', '추천', '후기', '방법', '총정리', '순위', '베스트', '리스트', '정보', '정리', '코디', '사복', '내돈내산', '비교', '리뷰', '모음'],
+  ABSTRACT: ['반전', '이유', '비밀', '꿀팁', '총정리', '솔직', '대박', '충격', '진실', '진짜', '핵심', '포인트', '노하우', '비법', '꿀조합', '꿀정보', '상황', '정석'],
+  STOP: ['그리고', '하지만', '있는', '없는', '이런', '저런', '정도', '사람', '때문', '부분', '경우', '다른', '모든', '너무', '정말', '이제', '요즘', '그냥'],
+  UNIT_RE: /\d+\s*(?:kg|킬로|g|만원|천원|원|개월|년|시간|분|초|위|명|살|개|번|회|일|주|%|배|편|kcal|칼로리)/i,
+};
+TS_DICT.ALL = [].concat(TS_DICT.EMO, TS_DICT.CONTR, TS_DICT.SEARCH, TS_DICT.ABSTRACT, TS_DICT.STOP);
+
+const tsChars = (s) => Array.from(String(s));
+const tsClamp = (n, a, b) => Math.max(a, Math.min(b, n));
+function tsNorm(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
+function tsHit(s, arr) { return arr.filter((w) => s.indexOf(w) >= 0); }
+function tsTokens(s) {
+  return tsNorm(s).replace(/["'“”‘’「」『』\[\]()<>·,~…!?.\-–—:;\/]/g, ' ').split(/\s+/).filter(Boolean);
+}
+/* "꾸민듯 안꾸민듯"처럼 두 글자가 다시 나오면 말장난(리듬)으로 본다 */
+function tsRhyme(s) {
+  const t = tsChars(s).filter((c) => /[가-힣a-zA-Z]/.test(c)).join('');
+  for (let i = 0; i + 2 <= t.length - 2; i++) {
+    const sub = t.substr(i, 2);
+    if (t.indexOf(sub, i + 2) >= 0) return sub;
+  }
+  return '';
+}
+function tsKind(title) {
+  if (/맛집|맛|메뉴|파스타|국수|고기|디저트|카페|베이커리|안주|밥|면|빵|술/.test(title)) return 'food';
+  if (/원|만원|가격|할인|지원금|세금|연말정산|적금|주식|청약|환급|절약/.test(title)) return 'money';
+  if (/다이어트|kg|몸무게|운동|헬스|요가|루틴|감량/.test(title)) return 'fit';
+  if (/근황|열애|결혼|이혼|컴백|화보|인스타|배우|아이돌|가수|출연|예능|논란/.test(title)) return 'celeb';
+  return 'generic';
+}
+const TS_BANK = {
+  food: ['"여기 왜 줄 서는지 알겠다" ', '"먹자마자 말 잃은" '],
+  money: ['"이거 모르면 그냥 손해" ', '"신청 안 하면 못 받아요" '],
+  fit: ['"이거 하나로 달라졌어요" ', '"한 달 만에 몸이 바뀐" '],
+  celeb: ['"이걸 직접 공개한다고?" ', '"그동안 숨긴 진짜 이유" '],
+  generic: ['"이건 실화야?" ', '"아직도 모르는" '],
+};
+
+function scoreHomeTitle(raw) {
+  const title = tsNorm(raw);
+  const chars = tsChars(title);
+  const len = chars.length;
+  if (!title) return { ok: false };
+  const front = chars.slice(0, 13).join('');
+  const head = chars.slice(0, 18).join('');
+  const good = [];
+  const fix = [];
+  const tips = [];
+  const toks = tsTokens(title);
+
+  /* ── (1) 앞부분 후킹 40 ── */
+  let hook = 8;
+  const quoted = /^["'“”‘’「『]/.test(title);
+  const emo = tsHit(head, TS_DICT.EMO);
+  const numFront = /\d/.test(head);
+  const contr = tsHit(head, TS_DICT.CONTR);
+  const qm = /[?!]|ㅋㅋ|ㅎㅎ/.test(head);
+  const rhyme = tsRhyme(title);
+  const rhymeStrong = !!rhyme && (quoted || emo.length > 0 || qm);
+  const frontPlain = !quoted && !numFront && !emo.length && !contr.length && !qm;
+
+  if (quoted) { hook += 10; good.push('따옴표 대화체로 시작해서 스크롤하다 눈이 먼저 멈춰요.'); }
+  if (emo.length) { hook += 8; good.push('앞부분 "' + emo[0] + '" 한마디가 도발·궁금증을 만들어요.'); }
+  if (numFront) { hook += 8; good.push('앞부분 숫자가 "얼마나·언제"라는 구체적인 기대를 만듭니다.'); }
+  if (contr.length) { hook += 5; good.push('"' + contr[0] + '" 같은 앞뒤 대비 구조가 있어요.'); }
+  if (qm) { hook += 4; good.push('물음표·감탄·ㅋㅋ 같은 말투가 살아 있어 말하듯 읽혀요.'); }
+  if (rhymeStrong) { hook += 5; good.push('"' + rhyme + '"처럼 반복되는 말장난이 리듬을 만들어요.'); }
+  if (frontPlain) {
+    hook -= 7;
+    fix.push('홈판 카드에 주로 보이는 앞부분 "' + front.trim() + '"이(가) 얌전해서 클릭을 부르는 힘이 약해요. 가격 반전·감탄 한마디나 도발적인 질문을 맨 앞에 넣어 보세요.');
+  }
+  hook = tsClamp(hook, 0, 40);
+
+  /* ── (2) 구체성 25 ── */
+  let con = 10;
+  const hasNum = /\d/.test(title);
+  const unit = TS_DICT.UNIT_RE.test(title);
+  const qContent = (title.match(/["“「『]([^"”」』]{4,})["”」』]/) || [])[1] || '';
+  const names = toks.filter((t) => tsChars(t).length >= 2 && !/^\d+$/.test(t) && TS_DICT.ALL.indexOf(t) < 0);
+  if (hasNum) { con += 7; good.push('숫자가 들어가서 기대치가 구체적이에요.'); }
+  if (unit) con += 4;
+  if (qContent) con += 3;
+  con += Math.min(7, names.length * 2);
+  const abs = tsHit(title, TS_DICT.ABSTRACT);
+  if (abs.length && !hasNum && !unit && names.length < 2) {
+    con -= 8;
+    fix.push('"' + abs[0] + '" 같은 말만 있고 무엇이 그런지 알려 줄 구체 대상(가격·메뉴·맛·수치·증상·기간)이 없어 모호해요.');
+  }
+  con = tsClamp(con, 0, 25);
+
+  /* ── (3) 검색형·구조 20 ── */
+  let st = 10;
+  const frontSearch = tsHit(front, TS_DICT.SEARCH);
+  const allSearch = tsHit(title, TS_DICT.SEARCH);
+  const searchCount = TS_DICT.SEARCH.reduce((n, w) => n + (title.split(w).length - 1), 0);
+  const tailNames = toks.filter((t) => tsChars(t).length >= 3 && TS_DICT.ALL.indexOf(t) < 0 && !/^\d+$/.test(t));
+  const frontHooky = quoted || emo.length > 0 || numFront || qm || contr.length > 0;
+  if (frontSearch.length) {
+    st -= 7;
+    fix.push('앞부분이 검색형 키워드("' + frontSearch[0] + '")로 시작해서 홈판 피드에선 스쳐 지나갈 수 있어요. 검색 키워드는 뒤로 빼고 앞에는 후킹 문구를 붙이세요.');
+  }
+  if (searchCount >= 3) {
+    st -= 4;
+    fix.push('검색형 키워드가 ' + searchCount + '개 붙어 있어 나열처럼 보여요. 제일 센 것 1~2개만 남기면 훨씬 또렷해져요.');
+  }
+  if (!frontSearch.length && frontHooky && (allSearch.length || tailNames.length)) {
+    st += 8;
+    good.push('앞은 후킹, 뒤는 ' + (allSearch.length ? '검색 키워드("' + allSearch[0] + '")' : '고유명사') + ' 조합이 잘 잡혀 있어요.');
+  } else if (!frontSearch.length && frontHooky) {
+    st += 4;
+  }
+  st = tsClamp(st, 0, 20);
+
+  /* ── (4) 길이·가독성 15 ── */
+  let ln;
+  if (len < 16) { ln = 4; fix.push('제목이 ' + len + '자로 너무 짧아요. 검색 키워드도 같이 담기지 못해요(22~42자 권장).'); }
+  else if (len < 22) { ln = 9; fix.push('조금 짧아요(' + len + '자). 핵심 키워드 하나를 더 붙이면 22~42자에 들어갑니다.'); }
+  else if (len <= 44) ln = 15;
+  else if (len <= 50) { ln = 10; fix.push('조금 길어요(' + len + '자). 모바일 카드에선 잘려 보이니 44자 안쪽을 권해요.'); }
+  else { ln = 5; fix.push('너무 길어요(' + len + '자). 모바일 홈판 카드에서 뒷부분이 잘려 보여요.'); }
+
+  const total = tsClamp(hook + con + st + ln, 0, 100);
+  const parts = [
+    { key: 'hook', label: '앞부분 후킹', score: hook, max: 40 },
+    { key: 'con', label: '구체성', score: con, max: 25 },
+    { key: 'st', label: '검색형·구조', score: st, max: 20 },
+    { key: 'ln', label: '길이·가독성', score: ln, max: 15 },
+  ];
+  const weakest = parts.slice().sort((a, b) => (a.score / a.max) - (b.score / b.max))[0];
+
+  let grade, gradeMsg;
+  if (total >= 90) { grade = 'S'; gradeMsg = '지금 그대로 홈판 카드로 써도 좋아요.'; }
+  else if (total >= 80) { grade = 'A'; gradeMsg = '홈판 카드에서 충분히 힘이 있어요.'; }
+  else if (total >= 70) { grade = 'B'; gradeMsg = '잘 읽히는데, 한 군데만 더 조이면 확 올라가요.'; }
+  else if (total >= 55) { grade = 'C'; gradeMsg = '홈판용으론 아쉬워요. 앞부분부터 손보면 좋아요.'; }
+  else if (frontSearch.length || searchCount >= 3) { grade = 'D'; gradeMsg = '홈판보다 검색용 제목에 가까워요. 앞부분을 후킹으로 바꾸면 점수가 크게 올라요.'; }
+  else if (len < 22) { grade = 'D'; gradeMsg = '짧고 얌전해서 피드에서 잘 안 눈에 띄어요.'; }
+  else { grade = 'D'; gradeMsg = '앞부분이 얌전해서 피드에서 묻히기 쉬워요.'; }
+
+  const wr = weakest.score / weakest.max;
+  const summary = gradeMsg + (wr >= 0.82 ? ''
+    : (total >= 80 ? ' 굳이 더 얹자면 ' : ' 가장 아쉬운 곳은 ') + weakest.label + '(' + weakest.score + '/' + weakest.max + ')이에요.');
+
+  /* ── 개선 제안 ── */
+  const kind = tsKind(title);
+  const bank = TS_BANK[kind] || TS_BANK.generic;
+  const suggestions = [];
+  if ((frontPlain || frontSearch.length) && names.length && len >= 14) {
+    let base = title;
+    if (frontSearch.length) {
+      const keep = frontSearch[0];
+      const core = toks.filter((t) => TS_DICT.SEARCH.indexOf(t) < 0 && !/\d/.test(t));
+      base = ((core.length ? core : toks).join(' ') + ' ' + keep).trim();
+    }
+    bank.forEach((p) => {
+      let cand = tsNorm(p + base);
+      if (tsChars(cand).length > 46) {
+        const ws = cand.split(' ');
+        while (ws.length > 4 && tsChars(ws.join(' ')).length > 46) ws.pop();
+        cand = ws.join(' ');
+      }
+      suggestions.push(cand);
+    });
+    tips.push('앞부분에 붙일 후킹 문구예요. 아래 제안을 눌러 복사한 뒤 뒤쪽 검색 키워드는 그대로 두면 홈판·검색 둘 다 잡혀요.');
+  }
+  if (abs.length && !hasNum) tips.push('"' + abs[0] + '" 대신 "○○원", "○개월", "○번"처럼 숫자를 넣어 주면 같은 말도 훨씬 구체적으로 읽혀요.');
+  if (frontSearch.length && !frontHooky) tips.push('검색형 제목은 검색 유입엔 강해요. 홈판까지 노릴 때만 앞에 후킹 한마디를 얹는 걸 추천해요.');
+  if ((frontPlain || frontSearch.length) && !names.length) tips.push('무엇에 대한 글인지(제품·메뉴·지역·인물) 하나를 제목에 먼저 넣어 주세요. 예: "파스타", "연말정산", "카더가든".');
+  if (!suggestions.length && total >= 80) tips.push('지금 제목 그대로 발행해도 좋아요. 사진 첫 장만 앞부분 후킹과 맞춰 두면 클릭률이 더 올라가요.');
+
+  return {
+    ok: true, title, len, front, total, grade, gradeMsg, summary,
+    parts, good: good.slice(0, 4), fix: fix.slice(0, 4), tips, suggestions,
+    weakest: weakest.key,
+  };
+}
+/* ==== SCORER-CORE END ==== */
+
+/* ── 화면 ── */
+const SC_EG = [
+  '"96kg에서 9개월 만에 뼈말라 되기까지" 마운자로 맞았다던 카더가든 근황',
+  '안양 범계 파스타 맛집 추천 후기',
+];
+let SC_NODE = null;
+
+function scorerNode() {
+  if (SC_NODE) return SC_NODE;
+  const box = document.createElement('div');
+  box.className = 'scorer card';
+  box.innerHTML = `
+    <div class="sc-head"><span>🎯 홈판 제목 점수기</span><span class="pill dust">앞 12~14자 기준</span></div>
+    <div class="sc-sub">정하신 제목을 넣으면 홈판 카드에서 몇 점인지, 어디가 약한지 바로 짚어 드려요.(100점 만점 · 바로 계산)</div>
+    <div class="sc-row">
+      <input class="sc-input" type="text" maxlength="120" placeholder="제목을 붙여넣거나 입력" autocomplete="off" enterkeyhint="go">
+      <button class="btn sc-go" data-sc="go">채점</button>
+    </div>
+    <div class="sc-egs"><span class="lbl">예시</span>
+      ${SC_EG.map((t, i) => `<button class="sc-chip" data-sc="eg" data-i="${i}">${esc(t)}</button>`).join('')}
+    </div>
+    <div class="sc-res"><div class="sc-empty">아직 채점 전이에요. 제목을 넣고 <b>채점</b>을 누르면 점수·등급·보완 포인트가 여기 나와요.</div></div>
+  `;
+  const inp = box.querySelector('.sc-input');
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); runScorer(); }
+  });
+  return (SC_NODE = box);
+}
+
+function mountScorer(slot) {
+  const el = typeof slot === 'string' ? $(slot) : slot;
+  if (!el) return;
+  const node = scorerNode();
+  if (node.parentNode !== el) el.insertBefore(node, el.firstChild);
+}
+
+function runScorer(rawTitle) {
+  const node = scorerNode();
+  const inp = node.querySelector('.sc-input');
+  const box = node.querySelector('.sc-res');
+  if (rawTitle != null) inp.value = rawTitle;
+  const r = scoreHomeTitle(inp.value);
+  if (!r.ok) {
+    box.innerHTML = `<div class="sc-empty">제목을 먼저 넣어 주세요.</div>`;
+    inp.focus();
+    return;
+  }
+  const chars = tsChars(r.title);
+  const barRows = r.parts.map((p) => `
+    <div class="sc-bar${(p.score / p.max) < 0.5 ? ' low' : ''}">
+      <div class="r"><span>${p.label}</span><span>${p.score}/${p.max}</span></div>
+      <div class="t"><i style="width:${Math.max(3, Math.round((p.score / p.max) * 100))}%"></i></div>
+    </div>`).join('');
+  box.innerHTML = `
+    <div class="sc-top">
+      <div class="sc-num">${r.total}<small>점</small></div>
+      <div class="sc-badge g${r.grade}">${r.grade} 등급</div>
+      <div class="sc-lenv">${r.len}자</div>
+    </div>
+    <div class="sc-sum">${esc(r.summary)}</div>
+    <div class="sc-prev">
+      <div class="lb"><span>홈판 카드 미리보기</span><span>앞 13자</span></div>
+      <div class="tt"><span class="hl">${esc(chars.slice(0, 13).join(''))}</span><span class="dim">${esc(chars.slice(13).join(''))}</span></div>
+    </div>
+    <div class="sc-bars">${barRows}</div>
+    ${r.good.length ? `<div class="sc-list good"><h4>👍 잘한 점</h4><ul>${r.good.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+    ${r.fix.length ? `<div class="sc-list fix"><h4>🔧 보완할 점</h4><ul>${r.fix.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+    ${r.tips.length ? `<div class="sc-tips">${r.tips.map((t) => '💡 ' + esc(t)).join('<br>')}</div>` : ''}
+    ${r.suggestions.length ? `<div class="sc-sug"><div class="h">📋 이렇게 바꿔 보기 (누르면 복사)</div>
+      ${r.suggestions.map((s) => `<button data-sc="copy" data-copy="${esc(s)}"><span class="cp">복사</span><span>${esc(s)}</span></button>`).join('')}
+    </div>` : ''}
+  `;
+}
+
+function renderScorer() {
+  $('#view-scorer').innerHTML = `
+    <div class="sec">
+      <div class="hero" style="padding:18px 20px">
+        <div class="hero-top">
+          <div class="avatar">🎯</div>
+          <div><h2>홈판 제목 점수기</h2>
+            <div class="hero-sub">제목 붙여넣기 → 채점 → 약한 곳만 고치기 · 6기 홈판 제목 원칙 그대로 100점</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="sec"><div id="scorerSlotFull"></div></div>
+  `;
+  mountScorer('#scorerSlotFull');
 }
 
 /* ───────────────────────── 오늘의 소재 · 실시간 새로고침 ─────────────────────────
@@ -1507,6 +1789,7 @@ function renderAll() {
   if (tab === 'home') renderHome();
   if (tab === 'challenge') renderChallenge();
   if (tab === 'materials') renderMaterials();
+  if (tab === 'scorer') renderScorer();
   if (tab === 'merge') { /* 정적 */ }
   $('#nav').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
 }
@@ -1562,6 +1845,15 @@ function bindEvents() {
       return;
     }
 
+    const scBtn = t.closest('[data-sc]');
+    if (scBtn) {
+      const act = scBtn.dataset.sc;
+      if (act === 'go') { runScorer(); return; }
+      if (act === 'eg') { runScorer(SC_EG[Number(scBtn.dataset.i)] || ''); return; }
+      if (act === 'copy') { copyText(scBtn.dataset.copy).then((ok) => toast(ok ? '제목을 복사했어요' : '복사가 막혀 있어요 · 길게 눌러 복사해 주세요')); return; }
+      return;
+    }
+
     const mtab = t.closest('[data-mtab]');
     if (mtab) { APP.ui.matTab = mtab.dataset.mtab; renderMaterials(); return; }
 
@@ -1594,6 +1886,8 @@ function bindEvents() {
         copyText(txt).then((ok) => {
           if (!ok) toast(what + ' 복사는 브라우저가 막고 있어요 · 쓸게요만 체크했어요');
         });
+        const scIn = SC_NODE && SC_NODE.querySelector('.sc-input');
+        if (scIn && !scIn.value.trim()) scIn.value = txt;
         toast(what + ' 복사 + 쓸게요 체크됐어요!');
       }
       saveLocal(); queuePush(); renderMaterials(); return;
