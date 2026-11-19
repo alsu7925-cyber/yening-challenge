@@ -3203,18 +3203,65 @@ const SL = {
   ratio: LS.get('yc.sl.ratio', '1:1'),
   caption: LS.get('yc.sl.caption', ''),
   mode: 'silhouette',      // 'silhouette' | 'photo'(내 사진 블러)
+  seed: 0,                 // 생성할 때마다 새로 뽑는다(유사 이미지 방지)
   img: null,
   imgName: '',
   bound: false,
 };
 
+/* 배경 프리셋 — 가운데는 뜨겁게, 바깥은 어둡게 (레퍼런스: 딥레드 연기 질감 + 비네트) */
 const SL_BG = {
-  red: { name: '붉은빛', from: '#8E1B26', to: '#2A0609', glow: 'rgba(226,90,96,.55)' },
-  navy: { name: '네이비', from: '#1B3358', to: '#050A14', glow: 'rgba(96,150,226,.45)' },
-  brown: { name: '다크브라운', from: '#4A2A1C', to: '#140A06', glow: 'rgba(206,150,96,.42)' },
-  purple: { name: '딥퍼플', from: '#3B2358', to: '#0D0716', glow: 'rgba(168,120,236,.45)' },
+  red: { name: '붉은빛', hot: '#D41C1C', from: '#8B0000', to: '#120306', neon: '#FF2A2A', tint: 'rgba(122,18,28,.62)',
+    hots: ['#D41C1C', '#B31217', '#E02020', '#9B0D12', '#C41818'],
+    froms: ['#8B0000', '#7A0B14', '#6E0A0F', '#5C0710', '#83060C'] },
+  navy: { name: '네이비', hot: '#2A5BB8', from: '#10224A', to: '#04070E', neon: '#3B7BFF', tint: 'rgba(16,40,86,.62)',
+    hots: ['#2A5BB8', '#1E4C9E', '#3568CE', '#21458F'],
+    froms: ['#10224A', '#0C1B3C', '#152C55', '#0A1730'] },
+  brown: { name: '다크브라운', hot: '#A85A2C', from: '#4A2317', to: '#0F0603', neon: '#FF8A3D', tint: 'rgba(74,32,18,.62)',
+    hots: ['#A85A2C', '#8E4A22', '#B8682F', '#7A3C1B'],
+    froms: ['#4A2317', '#3E1C12', '#54291A', '#33140D'] },
+  purple: { name: '딥퍼플', hot: '#8B4BE0', from: '#3B2068', to: '#0B0514', neon: '#B266FF', tint: 'rgba(58,28,96,.62)',
+    hots: ['#8B4BE0', '#7640C4', '#9D5CF0', '#6733B0'],
+    froms: ['#3B2068', '#301A55', '#452A78', '#291647'] },
 };
-const SL_KIND = { male: '남자', female: '여자', player: '선수' };
+
+/* 생성 버튼을 누를 때마다 새 시드 — 픽셀·구성이 매번 조금씩 달라진다(네이버 유사 이미지 방지) */
+function slNewSeed() { SL.seed = Math.floor(Math.random() * 1e9) + 1; }
+
+/* 시드로 그 회차의 변주를 뽑는다 (같은 시드면 같은 그림) */
+function slVariant() {
+  const R = slRnd(SL.seed || 1);
+  const fonts = [
+    '800 %s "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif',
+    '800 %s Georgia,"Times New Roman",serif',
+    '900 %s "Arial Black",Impact,"Malgun Gothic",sans-serif',
+    '800 %s "Courier New",monospace',
+  ];
+  return {
+    hotIdx: Math.floor(R() * 5),
+    fromIdx: Math.floor(R() * 5),
+    smokeSeed: Math.floor(R() * 1e9) + 7,
+    smokeN: 44 + Math.floor(R() * 22),
+    glowX: 0.5 + (R() - 0.5) * 0.14,
+    glowY: 0.36 + (R() - 0.5) * 0.12,
+    scale: 0.965 + R() * 0.07,
+    offX: (R() - 0.5) * 0.045,
+    offY: (R() - 0.5) * 0.02,
+    glyphRot: (R() - 0.5) * 8,          // ±4도
+    glyphSizeK: 0.94 + R() * 0.12,      // ±6%
+    glyphGlowK: 0.75 + R() * 0.6,
+    glyphFont: fonts[Math.floor(R() * fonts.length)],
+    ringK: 0.85 + R() * 0.3,
+    kind: ['male', 'female', 'player'][Math.floor(R() * 3)],
+  };
+}
+
+let SL_V = null;
+
+function slKindNow(V) {
+  return SL.kind === 'random' ? (V ? V.kind : 'male') : SL.kind;
+}
+const SL_KIND = { male: '남자', female: '여자', player: '선수', random: '🎲 랜덤' };
 const SL_GLYPH = { '?': '?', '!': '!', 'VS': 'VS', none: '없음' };
 
 function slSize() { return SL.ratio === '16:9' ? [1600, 900] : [1000, 1000]; }
@@ -3236,66 +3283,189 @@ function slRR(ctx, x, y, w, h, r) {
   ctx.fill();
 }
 
-/* 머리·어깨 실루엣 (남자·선수: 목이 드러난 상반신 / 여자: 어깨 위로 짧게 떨어지는 머리) */
+/* '#RRGGBB' + 알파 → 'rgba(...)' */
+function slA(hex, a) {
+  const h = String(hex || '#FF2A2A').replace('#', '');
+  const n = parseInt(h.length === 3 ? h.replace(/./g, '$&$&') : h, 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+
+/* 고정 난수 — 다시 그려도 같은 질감이 나오게 */
+function slRnd(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let x = a;
+    x = Math.imul(x ^ (x >>> 15), x | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* 배경 — 중앙 딥레드 + 연기 질감 + 입자 + 비네트 */
+function slBackground(ctx, W, H, cfg, V) {
+  V = V || slVariant();
+  ctx.fillStyle = cfg.to;
+  ctx.fillRect(0, 0, W, H);
+
+  const rg = ctx.createRadialGradient(W * V.glowX, H * (V.glowY - 0.04), W * 0.02, W * V.glowX, H * (V.glowY + 0.04), W * (0.70 + V.ringK * 0.03));
+  rg.addColorStop(0, cfg.hot);
+  rg.addColorStop(0.34, cfg.from);
+  rg.addColorStop(1, cfg.to);
+  ctx.fillStyle = rg;
+  ctx.fillRect(0, 0, W, H);
+
+  /* 머리 뒤 역광 */
+  const bk = ctx.createRadialGradient(W * V.glowX, H * V.glowY, W * 0.04, W * V.glowX, H * (V.glowY + 0.02), W * 0.40);
+  bk.addColorStop(0, slA(cfg.neon, 0.30));
+  bk.addColorStop(0.55, slA(cfg.neon, 0.14));
+  bk.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = bk;
+  ctx.fillRect(0, 0, W, H);
+
+  /* 연기·구름 질감 */
+  const rnd = slRnd(V.smokeSeed);
+  for (let i = 0; i < V.smokeN; i++) {
+    const x = W * (0.08 + rnd() * 0.84);
+    const y = H * (0.04 + rnd() * 0.80);
+    const r = W * (0.07 + rnd() * 0.32);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const dark = rnd() < 0.30;
+    const a = (dark ? 0.10 : 0.06) + rnd() * 0.10;
+    g.addColorStop(0, dark ? 'rgba(0,0,0,' + a.toFixed(3) + ')' : 'rgba(255,86,70,' + a.toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* 거친 입자 */
+  for (let i = 0; i < 2200 + V.smokeN * 8; i++) {
+    const x = rnd() * W, y = rnd() * H;
+    ctx.fillStyle = rnd() < 0.5 ? 'rgba(255,225,215,.035)' : 'rgba(0,0,0,.055)';
+    ctx.fillRect(x, y, 1.7, 1.7);
+  }
+
+  /* 바깥 비네트 */
+  const vg = ctx.createRadialGradient(W * 0.5, H * 0.44, W * 0.16, W * 0.5, H * 0.44, W * 0.86);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(0.55, 'rgba(0,0,0,.34)');
+  vg.addColorStop(1, 'rgba(0,0,0,.94)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* 정면 상반신 실루엣 — 머리카락·귀·목·어깨 라인을 살려서 */
 function slFigure(ctx, W, H) {
   const cx = W / 2;
-  const rh = H * 0.112;
-  const rw = rh * 0.93;
-  const cy = H * 0.345;
-  const bottom = H * 1.02;
-  const female = SL.kind === 'female';
-  const player = SL.kind === 'player';
+  const rh = H * 0.205;          // 머리 세로 반지름
+  const rw = rh * 0.78;          // 머리 가로 반지름
+  const cy = H * 0.315;          // 머리 중심
+  const eff = slKindNow(SL_V);
+  const female = eff === 'female';
+  const player = eff === 'player';
+  const neckW = rw * (female ? 0.44 : 0.52);
+  const neckTop = cy + rh * 0.62;
+  const neckBot = cy + rh * 0.92;
+  const shoulderY = H * 0.585;
 
   ctx.save();
-  ctx.fillStyle = '#0B0708';
+  ctx.fillStyle = '#050505';
 
-  const shoulder = W * (player ? 0.345 : female ? 0.285 : 0.305);
-  const neckW = rw * (female ? 0.46 : 0.56);
-
-  /* 몸통 + 어깨 */
+  /* 어깨 + 몸통 (화면 밖까지) */
+  /* 어깨: 목에서 바깥으로 완만하게 내려가 어깨 끝을 만들고, 팔은 화면 밖까지 */
+  const sw = W * 0.56;                                        // 몸통 폭(화면 밖까지)
+  const capX = W * (player ? 0.245 : female ? 0.185 : 0.215);  // 어깨 끝 x
+  const capY = H * (player ? 0.648 : female ? 0.664 : 0.656);
+  const outX = W * (player ? 0.48 : female ? 0.43 : 0.46);     // 어깨가 화면 밖으로 빠지는 x
+  const outY = H * (player ? 0.738 : female ? 0.756 : 0.744);
   ctx.beginPath();
-  ctx.moveTo(cx - shoulder, bottom);
-  ctx.bezierCurveTo(cx - shoulder * 0.95, cy + rh * 2.1, cx - rw * 1.85, cy + rh * 1.85, cx - neckW, cy + rh * 1.02);
-  ctx.quadraticCurveTo(cx, cy + rh * 0.76, cx + neckW, cy + rh * 1.02);
-  ctx.bezierCurveTo(cx + rw * 1.85, cy + rh * 1.85, cx + shoulder * 0.95, cy + rh * 2.1, cx + shoulder, bottom);
+  ctx.moveTo(cx - sw - W * 0.06, H * 1.04);
+  ctx.lineTo(cx - sw - W * 0.06, outY + H * 0.02);
+  ctx.quadraticCurveTo(cx - sw - W * 0.04, outY, cx - outX, outY);
+  ctx.bezierCurveTo(cx - outX * 0.62, outY - H * 0.006, cx - capX * 1.75, capY + H * 0.026, cx - capX, capY);
+  ctx.bezierCurveTo(cx - capX * 0.58, capY - H * 0.032, cx - neckW * 1.5, neckBot + H * 0.012, cx - neckW, neckBot);
+  ctx.lineTo(cx + neckW, neckBot);
+  ctx.bezierCurveTo(cx + neckW * 1.5, neckBot + H * 0.012, cx + capX * 0.58, capY - H * 0.032, cx + capX, capY);
+  ctx.bezierCurveTo(cx + capX * 1.75, capY + H * 0.026, cx + outX * 0.62, outY - H * 0.006, cx + outX, outY);
+  ctx.quadraticCurveTo(cx + sw + W * 0.04, outY, cx + sw + W * 0.06, outY + H * 0.02);
+  ctx.lineTo(cx + sw + W * 0.06, H * 1.04);
   ctx.closePath();
   ctx.fill();
 
   /* 목 */
   ctx.beginPath();
-  ctx.rect(cx - neckW, cy + rh * 0.62, neckW * 2, rh * 0.62);
+  ctx.moveTo(cx - neckW, neckTop);
+  ctx.lineTo(cx + neckW, neckTop);
+  ctx.lineTo(cx + neckW * 1.06, neckBot);
+  ctx.lineTo(cx - neckW * 1.06, neckBot);
+  ctx.closePath();
   ctx.fill();
 
-  /* 머리 */
+  /* 턱 + 머리 */
   ctx.beginPath();
   ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
   ctx.fill();
+  /* 턱선을 조금 좁게 다듬기 */
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + rh * 0.42, rw * 0.86, rh * 0.62, 0, 0, Math.PI);
+  ctx.fill();
+
+  /* 귀 */
+  [1, -1].forEach((s) => {
+    ctx.beginPath();
+    ctx.ellipse(cx + s * rw * 0.98, cy + rh * 0.06, rw * 0.13, rh * 0.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
 
   if (female) {
-    /* 머리카락 — 머리 둘레를 덮는 타원 + 어깨 위 짧은 컷 */
+    /* 긴 머리 — 정수리에서 어깨 위까지 */
     ctx.beginPath();
-    ctx.ellipse(cx, cy - rh * 0.07, rw * 1.14, rh * 1.07, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy - rh * 0.06, rw * 1.12, rh * 1.06, 0, 0, Math.PI * 2);
     ctx.fill();
-    slRR(ctx, cx - rw * 1.14, cy - rh * 0.18, rw * 0.62, rh * 1.46, rw * 0.31);
-    slRR(ctx, cx + rw * 0.52, cy - rh * 0.18, rw * 0.62, rh * 1.46, rw * 0.31);
+    slRR(ctx, cx - rw * 1.10, cy - rh * 0.10, rw * 0.52, rh * 2.05, rw * 0.26);
+    slRR(ctx, cx + rw * 0.58, cy - rh * 0.10, rw * 0.52, rh * 2.05, rw * 0.26);
+  } else {
+    /* 짧은 머리 — 정수리에 잔머리 결 */
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - rh * 0.07, rw * 1.04, rh * 0.99, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (!player) {
+      /* 물결치는 머리 결 — 원을 붙이지 않고 반지름을 흔들어 그린다 */
+      ctx.beginPath();
+      const N = 64;
+      for (let i = 0; i <= N; i++) {
+        const a = Math.PI * (1.0 + i / N);          // 위쪽 반원
+        const wob = 1 + 0.032 * Math.sin(a * 7.5 + 0.6) + 0.016 * Math.sin(a * 17);
+        const px = cx + Math.cos(a) * rw * wob;
+        const py = cy - rh * 0.02 + Math.sin(a) * rh * wob;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.lineTo(cx + rw * 1.02, cy + rh * 0.10);
+      ctx.lineTo(cx - rw * 1.02, cy + rh * 0.10);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 
-  /* 선수 — 모자 챙 */
   if (player) {
+    /* 모자 챙 */
     ctx.beginPath();
-    ctx.ellipse(cx, cy - rh * 0.72, rw * 1.16, rh * 0.40, 0, Math.PI, Math.PI * 2);
+    ctx.ellipse(cx, cy - rh * 0.60, rw * 1.12, rh * 0.62, 0, Math.PI, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.ellipse(cx, cy - rh * 0.30, rw * 1.5, rh * 0.16, 0, Math.PI, Math.PI * 2);
+    ctx.ellipse(cx, cy - rh * 0.66, rw * 1.46, rh * 0.17, 0, Math.PI, Math.PI * 2);
     ctx.fill();
   }
+
   ctx.restore();
   return { cx, cy, rh, rw };
 }
 
 /* 사진 블러(선택) — 캔버스만으로. filter 미지원 브라우저도 되도록 축소→확대 방식 */
 function slBlurPhoto(ctx, im, W, H) {
-  const k = Math.max(3, Math.round(W / 55));            // 클수록 더 흐림
+  const k = Math.max(3, Math.round(W / 55));
   const small = document.createElement('canvas');
   small.width = Math.max(2, Math.round(W / k));
   small.height = Math.max(2, Math.round(H / k));
@@ -3313,21 +3483,62 @@ function slBlurPhoto(ctx, im, W, H) {
 }
 
 function slDrawPhoto(ctx, W, H) {
+  const cfg = SL_BG[SL.bg] || SL_BG.red;
   slBlurPhoto(ctx, SL.img, W, H);
   /* 붉으스름한 틴트 */
   const g2 = ctx.createLinearGradient(0, 0, W, H);
-  g2.addColorStop(0, 'rgba(122,18,28,.60)');
-  g2.addColorStop(1, 'rgba(18,4,8,.78)');
+  g2.addColorStop(0, cfg.tint);
+  g2.addColorStop(1, 'rgba(14,3,6,.80)');
   ctx.fillStyle = g2;
   ctx.fillRect(0, 0, W, H);
-  /* 위아래 비네트 */
-  const vg = ctx.createLinearGradient(0, H * 0.55, 0, H);
+  /* 연기 질감 + 비네트 */
+  const rnd = slRnd(7770031);
+  for (let i = 0; i < 26; i++) {
+    const x = W * rnd(), y = H * rnd(), r = W * (0.10 + rnd() * 0.26);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(0,0,0,' + (0.06 + rnd() * 0.10).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  const vg = ctx.createRadialGradient(W * 0.5, H * 0.45, W * 0.16, W * 0.5, H * 0.45, W * 0.85);
   vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,.5)');
+  vg.addColorStop(1, 'rgba(0,0,0,.80)');
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
-  return { cx: W / 2, cy: H * 0.44, rh: H * 0.11, rw: H * 0.10 };
+  return { cx: W / 2, cy: H * 0.46, rh: H * 0.20, rw: W * 0.16 };
 }
+
+/* 가운데 큰 물음표 — 흰색 + 빨간 빛 번짐 (기울기·크기·폰트가 회차마다 조금씩 다르다) */
+function slGlyph(ctx, W, H, p, V) {
+  if (SL.glyph === 'none') return;
+  V = V || slVariant();
+  const cfg = SL_BG[SL.bg] || SL_BG.red;
+  const txt = SL.glyph;
+  const fs = (txt === 'VS' ? W * 0.20 : W * 0.42) * (txt === 'VS' ? 1 : V.glyphSizeK);
+  const font = (V.glyphFont || '800 %s "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif').replace('%s', Math.round(fs) + 'px');
+  const gy = SL.mode === 'photo' ? p.cy : p.cy + p.rh * 0.28;
+  ctx.save();
+  ctx.translate(p.cx, gy);
+  ctx.rotate((V.glyphRot || 0) * Math.PI / 180);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = font;
+  /* 빛 번짐 */
+  ctx.shadowColor = cfg.neon;
+  ctx.shadowBlur = W * 0.07 * (V.glyphGlowK || 1);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(txt, 0, 0);
+  ctx.fillText(txt, 0, 0);
+  /* 선명한 본체 */
+  ctx.shadowBlur = W * 0.012;
+  ctx.shadowColor = 'rgba(255,255,255,.85)';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(txt, 0, 0);
+  ctx.restore();
+}
+
+let SL_MASK = null;
 
 function slDraw() {
   const cv = $('#slCanvas');
@@ -3335,52 +3546,48 @@ function slDraw() {
   const [W, H] = slSize();
   cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');
-  const bg = SL_BG[SL.bg] || SL_BG.red;
+  const base = SL_BG[SL.bg] || SL_BG.red;
+  const V = (SL_V = slVariant());
+  const cfg = Object.assign({}, base, {
+    hot: (base.hots || [base.hot])[V.hotIdx % (base.hots || [base.hot]).length],
+    from: (base.froms || [base.from])[V.fromIdx % (base.froms || [base.from]).length],
+  });
   let p;
 
   if (SL.mode === 'photo' && SL.img) {
     p = slDrawPhoto(ctx, W, H);
   } else {
-    /* 배경 그라데이션 */
-    const g = ctx.createLinearGradient(0, 0, W * 0.75, H);
-    g.addColorStop(0, bg.from);
-    g.addColorStop(1, bg.to);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+    slBackground(ctx, W, H, cfg, V);
 
-    /* 인물 뒤 은은한 빛 */
-    const glow = ctx.createRadialGradient(W / 2, H * 0.36, W * 0.03, W / 2, H * 0.36, W * 0.46);
-    glow.addColorStop(0, bg.glow);
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, W, H);
+    /* 실루엣 — 미세 확대·좌우 오프셋 + 붉은 네온 글로우 + 검정 본체 */
+    SL_MASK = SL_MASK || document.createElement('canvas');
+    SL_MASK.width = W; SL_MASK.height = H;
+    const mctx = SL_MASK.getContext('2d');
+    mctx.clearRect(0, 0, W, H);
+    p = slFigure(mctx, W, H);
 
-    /* 위아래 비네트 */
-    const vg = ctx.createLinearGradient(0, H * 0.6, 0, H);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,.45)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, W, H);
-
-    p = slFigure(ctx, W, H);
-  }
-
-  /* 큰 물음표·느낌표 — 사진 모드에선 가운데 */
-  if (SL.glyph !== 'none') {
-    const txt = SL.glyph;
-    const fs = txt === 'VS' ? W * 0.13 : W * 0.26;
+    const ax = W / 2, ay = H * 0.58;
     ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '800 ' + Math.round(fs) + 'px "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif';
-    ctx.shadowColor = 'rgba(0,0,0,.55)';
-    ctx.shadowBlur = W * 0.03;
-    ctx.fillStyle = '#FFF6F2';
-    ctx.globalAlpha = 0.96;
-    const gy = SL.mode === 'photo' ? p.cy : p.cy + p.rh * 0.12;
-    ctx.fillText(txt, p.cx, gy);
+    ctx.translate(ax + W * V.offX, ay + H * V.offY);
+    ctx.scale(V.scale, V.scale);
+    ctx.translate(-ax, -ay);
+    ctx.shadowColor = cfg.neon;
+    ctx.shadowBlur = W * 0.085 * V.ringK;
+    ctx.drawImage(SL_MASK, 0, 0);
+    ctx.shadowBlur = W * 0.045 * V.ringK;
+    ctx.drawImage(SL_MASK, 0, 0);
+    ctx.shadowBlur = W * 0.012;
+    ctx.drawImage(SL_MASK, 0, 0);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(ax + W * V.offX, ay + H * V.offY);
+    ctx.scale(V.scale, V.scale);
+    ctx.translate(-ax, -ay);
+    ctx.drawImage(SL_MASK, 0, 0);
     ctx.restore();
   }
+
+  slGlyph(ctx, W, H, p, V);
 
   /* 하단 문구 */
   if (SL.caption && SL.caption.trim()) {
@@ -3389,8 +3596,8 @@ function slDraw() {
     ctx.textBaseline = 'alphabetic';
     const fs = W * 0.045;
     ctx.font = '800 ' + Math.round(fs) + 'px "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif';
-    ctx.shadowColor = 'rgba(0,0,0,.6)';
-    ctx.shadowBlur = W * 0.012;
+    ctx.shadowColor = 'rgba(0,0,0,.7)';
+    ctx.shadowBlur = W * 0.014;
     ctx.fillStyle = 'rgba(255,248,244,.96)';
     ctx.fillText(SL.caption.trim().slice(0, 34), W / 2, H - fs * 0.85);
     ctx.restore();
@@ -3398,7 +3605,8 @@ function slDraw() {
   const meta = $('#slMeta');
   if (meta) {
     meta.textContent = W + ' × ' + H + ' · ' +
-      (SL.mode === 'photo' && SL.img ? '내 사진 블러 모드' : (SL_BG[SL.bg] || SL_BG.red).name + ' · ' + SL_KIND[SL.kind] + ' 실루엣');
+      (SL.mode === 'photo' && SL.img ? '내 사진 블러 모드' : (base.name) + ' · ' + SL_KIND[slKindNow(V)] + ' 실루엣') +
+      ' · 고유 시드 ' + String(SL.seed).slice(-4);
   }
   slPhotoPaint();
 }
@@ -3427,6 +3635,7 @@ function slLoadPhoto(file) {
 }
 
 function renderSilhouette() {
+  if (!SL.seed) slNewSeed();
   if (!SL.bound) {
     $('#view-silhouette').innerHTML = `
       <div class="sec">
@@ -3476,8 +3685,10 @@ function renderSilhouette() {
             </div>
             <div class="sl-btns">
               <button class="btn" id="slMake">🎨 실루엣 이미지 만들기</button>
+              <button class="btn ghost" id="slReroll">🎲 다른 느낌으로 다시 생성</button>
               <button class="btn soft" id="slSave">💾 PNG 저장</button>
             </div>
+            <p class="sl-seednote">※ 매번 고유 이미지로 생성돼 유사 이미지 걱정 없이 사용할 수 있어요.</p>
             <p class="sl-note">사진·폰트 파일 없이 캔버스로만 그립니다. 네이버 대표 이미지는 1000×1000(1:1)을 권장해요.</p>
           </div>
           <div class="sl-preview">
@@ -3496,7 +3707,8 @@ function renderSilhouette() {
         slDraw();
         return;
       }
-      if (ev.target.closest('#slMake')) { slDraw(); toast('썸네일을 만들었어요 🎨'); return; }
+      if (ev.target.closest('#slMake')) { slNewSeed(); slDraw(); toast('새 썸네일을 만들었어요 · 매번 다른 그림 🎨'); return; }
+      if (ev.target.closest('#slReroll')) { slNewSeed(); slDraw(); toast('다른 느낌으로 다시 그렸어요 🎲'); return; }
       if (ev.target.closest('#slSave')) { slSave(); return; }
       if (ev.target.closest('#slPick')) { const f = $('#slPhotoInput'); if (f) f.click(); return; }
       if (ev.target.closest('#slBack')) {
@@ -3524,12 +3736,15 @@ function renderSilhouette() {
 function slSave() {
   const cv = $('#slCanvas');
   if (!cv) return;
-  const name = '실루엣썸네일_' + (SL.caption || '').trim().replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 20) + '_' + slSize().join('x') + '.png';
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  const stamp = d.toISOString().slice(0, 10).replace(/-/g, '') + '_' + d.toISOString().slice(11, 19).replace(/:/g, '');
+  const rnd4 = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const name = 'yeb_thumb_' + stamp + '_' + rnd4 + '.png';
   cv.toBlob((blob) => {
     if (!blob) { toast('저장이 막혔어요 · 미리보기를 길게 눌러 저장해 주세요'); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = name.replace(/^_+/, '썸네일_');
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
@@ -3540,6 +3755,7 @@ function slSave() {
 /* 테스트용 */
 window.__sl = {
   state: SL, draw: slDraw, save: slSave, render: renderSilhouette, loadPhoto: slLoadPhoto,
+  reseed: slNewSeed, variant: slVariant,
   dataUrl: () => ($('#slCanvas') ? $('#slCanvas').toDataURL('image/png') : ''),
   size: slSize,
 };

@@ -793,3 +793,4 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .sl-ph{font-size:10.5px;color:var(--muted);font-weight:700}
 .sl-caution{font-size:10.5px;line-height:1.55;color:#A4493F;background:#FFF3F2;border:1px solid #EFCFCB;border-radius:9px;padding:6px 8px;margin-top:5px}
 .sl-caution b{color:#B33A34}
+.sl-seednote{font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.5}
