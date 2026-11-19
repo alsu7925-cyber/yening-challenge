@@ -66,6 +66,7 @@ const APP = {
   state: null,
   public: null,
   built: null,
+  config: null,   // 빌드본(복호화) — 블로그 목록·목표는 항상 이쪽을 따른다
   ui: { tab: 'home', round: null, blog: 'all', matTab: 'main_inflow', matDate: kstDate(), topic: 'all' },
   sync: { url: '', anon: '', key: '', rev: 0, last: '', status: 'idle', busy: false },
   bootAt: kstDate(),
@@ -108,7 +109,7 @@ async function syncPull(quiet) {
       APP.sync.rev = d.rev;
       APP.sync.last = d.updated_at || '';
       const before = JSON.stringify(APP.state);
-      APP.state = mergeStates(APP.state, remote);
+      APP.state = mergeStates(APP.state, remote, APP.config);
       saveLocal();
       const after = JSON.stringify(APP.state);
       setSync('ok');
@@ -150,15 +151,16 @@ async function syncPush() {
 }
 
 /* 두 상태를 합친다 — 날짜·블로그 단위로 더 최근 것, 글 목록은 합집합 */
-function mergeStates(local, incoming) {
+function mergeStates(local, incoming, cfg) {
   const out = JSON.parse(JSON.stringify(incoming || {}));
   out.entries = out.entries || {};
   out.picks = Object.assign({}, (incoming || {}).picks || {});
   const l = local || {};
-  // 설정류는 config(빌드본)를 따른다
-  out.rounds = (incoming && incoming.rounds) || l.rounds;
-  out.blogs = (incoming && incoming.blogs) || l.blogs;
-  out.active_round = (incoming && incoming.active_round) || l.active_round;
+  // 설정류(블로그 목록·목표·기수)는 항상 config(빌드본)를 따른다
+  const C = cfg || incoming || {};
+  out.rounds = (C && C.rounds) || l.rounds;
+  out.blogs = (C && C.blogs) || l.blogs;
+  out.active_round = (C && C.active_round) || l.active_round;
 
   for (const [date, day] of Object.entries(l.entries || {})) {
     out.entries[date] = out.entries[date] || {};
@@ -1548,6 +1550,7 @@ function paintPin() {
 async function tryUnlock(pin) {
   try {
     const st = await decryptEnvelope(APP.built, pin);
+    APP.config = st;
     return st;
   } catch { return null; }
 }
