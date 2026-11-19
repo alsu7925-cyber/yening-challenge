@@ -2768,7 +2768,8 @@ function ftClosingBlocks(b, text) {
   if (b.closingStyle === 'section') {
     const out = [{ t: 'hr' }];
     out.push({ t: 'h2', s: lines[0] });                        // 첫 줄은 소제목(💛 찐찡맘 총평)
-    for (let i = 1; i < lines.length; i++) out.push({ t: 'p', s: lines[i] });
+    // 총평 본문 줄들은 붙여 쓴다(줄마다 빈 줄이 생기지 않게)
+    for (let i = 1; i < lines.length; i++) out.push({ t: 'p', s: lines[i], gapBefore: i === 1 });
     return out;
   }
   return [{ t: 'q', s: lines.join('\n') }];
@@ -2785,6 +2786,8 @@ function ftAutoClosing(blocks, b) {
   // 맨 끝 해시태그 줄(#태그 #태그)은 끝인사 뒤에 남긴다
   while (at > 0 && out[at - 1].t === 'p' && /^\s*(#[^\s#]+\s*)+$/.test(String(out[at - 1].s || ''))) at--;
   out.splice(at, 0, ...cb);
+  // 끌인사 뒤에 따라오는 줄(해시태그 등)은 새 문단에서 시작한다
+  if (out[at + cb.length]) out[at + cb.length].gapBefore = true;
   return out;
 }
 

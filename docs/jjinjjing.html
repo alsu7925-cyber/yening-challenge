@@ -898,7 +898,7 @@ function ftClosingBlocks(text) {
   const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n').map((s) => s.trim()).filter(Boolean);
   if (!lines.length) return [];
   const out = [{ t: 'hr' }, { t: 'h2', s: lines[0] }];
-  for (let i = 1; i < lines.length; i++) out.push({ t: 'p', s: lines[i] });
+  for (let i = 1; i < lines.length; i++) out.push({ t: 'p', s: lines[i], gapBefore: i === 1 });   // 본문 줄들은 붙여 쓴다
   return out;
 }
 function ftAutoClosing(blocks) {
@@ -910,6 +910,7 @@ function ftAutoClosing(blocks) {
   let at = out.length;
   while (at > 0 && out[at - 1].t === 'p' && /^\s*(#[^\s#]+\s*)+$/.test(String(out[at - 1].s || ''))) at--;
   out.splice(at, 0, ...cb);
+  if (out[at + cb.length]) out[at + cb.length].gapBefore = true;   // 마무리 뒤 해시태그는 새 문단
   return out;
 }
 
