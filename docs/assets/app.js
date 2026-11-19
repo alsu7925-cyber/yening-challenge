@@ -1143,7 +1143,10 @@ function naverSportsRows(md) {
   while ((m = re.exec(md)) && rows.length < 20) {
     const url = m[2];
     if (!/\/article\//.test(url)) continue;
-    const title = mdClean(m[1]).replace(/^\d{1,2}위\s*/, '');
+    const title = mdClean(m[1])
+      .replace(/^\d{1,2}위\s*/, '')
+      .replace(/^\d{1,2}\s*/, '')
+      .replace(/\s*조회수\s*[\d,]+\s*$/, '');
     if (title.length < 8 || seen.has(title)) continue;
     seen.add(title);
     rows.push({ title, url, src: '네이버 스포츠 랭킹', at: '' });
@@ -1186,8 +1189,8 @@ const LIVE_PLANS = {
       source: '대체 피드 · Google 뉴스 인기 (브라우저 새로고침)' }),
   ],
   broadcast: [
-    async () => ({ rows: naverSportsRows(await jinaText('https://m.sports.naver.com/index')),
-      source: '네이버 스포츠 많이 본 뉴스 (브라우저 새로고침)' }),
+    async () => ({ rows: naverSportsRows(await jinaText('https://m.sports.naver.com/ranking/index')),
+      source: '네이버 스포츠 많이 본 뉴스 랭킹 (브라우저 새로고침)' }),
     async () => ({ rows: await rssRows(GN_RSS + 'SPORTS?hl=ko&gl=KR&ceid=KR:ko'),
       source: '대체 피드 · Google 뉴스 스포츠 (브라우저 새로고침)' }),
   ],
