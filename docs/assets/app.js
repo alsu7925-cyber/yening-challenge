@@ -196,8 +196,16 @@ function mergeStates(local, incoming, cfg) {
       if (e.posts) e.posts = e.posts.filter((p) => !rm[p.url]);
     }
   }
-  if (!out.materials) out.materials = l.materials || {};
-  if (!out.materials_history) out.materials_history = l.materials_history || {};
+  // 오늘의 소재·키워드 자료는 배포본(빌드)을 따른다 — 매일 sync_challenge 로 갱신되는 값이라
+  // 원격 스냅샷에 남은 옛 소재가 새 배포를 가리지 않게 한다.
+  const cm = (C && C.materials) || null;
+  if (cm) {
+    out.materials = cm;
+    if (C.materials_history) out.materials_history = C.materials_history;
+  } else {
+    if (!out.materials) out.materials = l.materials || {};
+    if (!out.materials_history) out.materials_history = l.materials_history || {};
+  }
   return out;
 }
 
@@ -628,7 +636,7 @@ function matPreview() {
     <div class="mat-item ${i === 0 ? 'top' : ''}">
       <div class="n">${r.rank || i + 1}</div>
       <div class="body"><div class="t">${esc(r.title)}</div>
-        <div class="m"><span>${esc(r.blog || '')}</span><span>조회 ${nfmt(r.views)}</span></div></div>
+        <div class="m">${r.blog ? `<span>${esc(r.blog)}</span>` : ''}${r.views != null ? `<span>조회 ${nfmt(r.views)}</span>` : ''}</div></div>
     </div>`).join('');
 }
 
