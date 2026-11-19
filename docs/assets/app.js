@@ -585,6 +585,29 @@ function renderHome() {
   `;
 }
 
+/* 지난 기록(리포트가 있는 날) — 챌린지 시작 전부터 쌓인 실제 수치 */
+function recentCard(round) {
+  const s = APP.state;
+  const days = Object.keys(s.entries || {}).filter((d) => d < round.start_date).sort().slice(-4);
+  if (!days.length) return '';
+  const rows = days.map((d) => {
+    let v = 0, r = 0, n = 0;
+    for (const b of s.blogs) {
+      const e = dayEntry(d, b.id);
+      if (!e) continue;
+      v += Number(e.views || 0); r += Number(e.revenue || 0); n += (e.posts || []).length;
+    }
+    return `<div class="drow"><div class="who"><div class="nm">${d.slice(5).replace('-', '.')} (${DOW[dowOf(d)]})</div>
+      <div class="mini">${n ? n + '편 · ' : ''}방문 ${nfmt(v)}</div></div>
+      <div class="money">${won(r)}</div></div>`;
+  }).join('');
+  return `<div class="sec card card-pad">
+    <div class="sec-head"><h2>최근 기록</h2><span class="sub">예닝 오피스 리포트 · 챌린지 시작 전</span></div>
+    ${rows}
+    <p style="font-size:11px;color:var(--muted);margin-top:8px">챌린지 1기 전에 쌓인 실제 방문자·수익입니다. 달력에는 기수 기간만 표시돼요.</p>
+  </div>`;
+}
+
 function matPreview() {
   const m = APP.state.materials || {};
   const rows = (m.main_inflow && m.main_inflow.rows) || [];
