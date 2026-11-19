@@ -2082,87 +2082,95 @@ function mgSave(type, ext) {
 }
 
 /* ───────────────────────── ✨ 서식 변환기 ───────────────────────── */
-/* 블로그별 서식 프리셋 — memory/topics/blog-campaign-ops/docs/blog-formats.md 기준
-   · 내몸데스크는 문서 확정값(포인트 #1F7A5C · 형광펜 #c2f4db · 소제목 30pt · 강조 19pt · 표 #e5fcf0)을 그대로 쓴다. */
+/* 블로그별 서식 프리셋 — 실제 발행 글 HTML 직접 확인값(2026-11-20)
+   · 네이버 스마트에디터 ONE은 글자 크기를 `se-fs-fsNN`(= NN px) 클래스로 저장한다.
+     실제 글 실측: 본문 se-fs-fs16(16px) · 소제목 se-fs-fs30(28~30px) · 형광펜·강조 se-fs-fs19(19px) · 인용구 se-fs-fs24(24px).
+     → 그래서 프리셋 수치는 pt가 아니라 px로 쓴다(16px = 에디터 16, 30px = 에디터 30).
+   · 확인한 글: blog.naver.com/ye_zib 224476288886·224482812032, /savedesk 224484151415,
+     /pick_moa 224482804309, /worddesk 224482801772·224477433733, /mybodydesk 224482707737
+   · 소제목 왼쪽 세로선은 실제 글에 없다(전 글 border-left 0건) → 넣지 않는다.
+   · 첫인사는 예지브러리만(안녕하세요, 예브예요🤍). 나머지 블로그 글에는 없다 → 자동 삽입 안 함.
+   · 내몸데스크는 문서 확정값(포인트 #1F7A5C · 형광펜 #c2f4db · 표 #e5fcf0) 유지. */
 /* 블로그별 프리셋. closing 문구는 자동 삽입 기능을 쓰지 않기로 해(2026-11-20) 화면에 쓰지 않고 데이터로만 둔다. */
 const FT_BLOGS = [
   {
     id: 'ye_zib', name: '예지브러리', emoji: '📚', handle: 'ye_zib',
     badge: '#C88189', accent: '#B26F79',
-    hl: '#FFD6E0', boldColor: '#B26F79', boldSize: 0,
-    body: 16, sub: 19, subColor: '#6E4B3F', subBar: '#DFA2A5', h1: 23,
-    quote: { bg: '#FFF8F6', bar: '#DFA2A5', color: '#6E4B3F' },
+    hl: '#FFD6E0', hlSize: 19, boldColor: '#000000', boldSize: 0,
+    body: 16, sub: 30, subColor: '#000000', h1: 24, text: '#000000',
+    quote: { bg: '#FFF8F6', bar: '#DFA2A5', color: '#000000', size: 24 },
     hr: '#EFE2DA', th: '#FBEAEC',
+    greet: '안녕하세요, **예브**예요🤍',
     tone: '담백한 해요체 · 인용구 훅 2줄',
-    rules: ['16pt 본문 · 연핑크 형광펜 #FFD6E0', '번호 없는 굵은 소제목', '인용구 훅 · 굵게·형광펜 강조'],
+    rules: ['본문 16px · 연핑크 형광펜 #FFD6E0', '소제목 30px · 첫인사 자동', '인용구 훅 · 형광펜 문장 19px'],
     closing: ['💬 예브의 한마디', '오늘도 예지브러리에 이야기 하나를 꽂아둡니다. 📚', '먹고, 써보고, 놀고! 예지브러리였습니다 📚'],
   },
   {
     id: 'pick_moa', name: '픽모아', emoji: '🛍️', handle: 'pick_moa',
     badge: '#3D6DB5', accent: '#2C5B9E',
-    hl: '#FFF1C2', boldColor: '#24466F', boldSize: 0,
-    body: 15, sub: 17, subColor: '#24466F', subBar: '#6E96CC', h1: 22,
-    quote: { bg: '#F5F9FE', bar: '#9DBBE6', color: '#24466F' },
+    hl: '#FFF1C2', hlSize: 19, boldColor: '#000000', boldSize: 0,
+    body: 16, sub: 30, subColor: '#000000', h1: 24, text: '#000000',
+    quote: { bg: '#F5F9FE', bar: '#9DBBE6', color: '#000000', size: 24 },
     hr: '#DCE6F2', th: '#E8F0FB',
     tone: '담백한 해요체 · 스펙·요약 강조',
-    rules: ['연노랑 형광펜 #FFF1C2', '핵심 스펙·한줄 요약 강조', 'IT·자동차 스펙 정리 톤'],
+    rules: ['본문 16px · 연노랑 형광펜 #FFF1C2', '소제목 30px · 첫인사 없음', '핵심 스펙·한줄 요약 강조'],
     closing: ['📱 픽모아 한줄 정리', '고른 기준과 아쉬운 점까지 담았습니다. 픽모아였습니다 🛍️'],
   },
   {
     id: 'savedesk', name: '세이브데스크', emoji: '💰', handle: 'savedesk',
     badge: '#1E8E6B', accent: '#0F6B52',
-    hl: '#FBE3D4', boldColor: '#0F6B52', boldSize: 0,
-    body: 15, sub: 17, subColor: '#14544A', subBar: '#5CBFA0', h1: 22,
-    quote: { bg: '#F2FBF7', bar: '#A9E0C9', color: '#14544A' },
+    hl: '#FBE3D4', hlSize: 19, boldColor: '#2C3A46', boldSize: 19,
+    body: 16, sub: 30, subColor: '#2C3A46', h1: 24, text: '#2C3A46',
+    quote: { bg: '#F2FBF7', bar: '#A9E0C9', color: '#2C3A46', size: 24 },
     hr: '#D8EDE4', th: '#E3F7EE',
     tone: '합쇼체(~습니다) · 수치 강조',
-    rules: ['연살구 형광펜 #FBE3D4로 숫자 강조', '금액·조건 기준일 문구 자동'],
+    rules: ['본문 16px · 연살구 형광펜 #FBE3D4', '소제목 30px · 첫인사 없음', '금액·조건 기준일 문구 자동'],
     autoNote: true,
     closing: ['💰 세이브데스크 정리', '오늘 확인한 숫자만 챙겨 가시면 됩니다. 세이브데스크였습니다.'],
   },
   {
     id: 'worddesk', name: '워드데스크', emoji: '🌏', handle: 'worddesk',
     badge: '#3D6DB5', accent: '#0047FF',
-    hl: '#EBF0FF', boldColor: '#0047FF', boldSize: 0, text: '#2C3A46',
-    body: 15, sub: 17, subColor: '#4E3B72', subBar: '#A98FD0', h1: 22,
-    quote: { bg: '#F8F5FD', bar: '#C9B8E8', color: '#4E3B72' },
+    hl: '#EBF0FF', hlSize: 19, boldColor: '#0047FF', boldSize: 19, text: '#2C3A46',
+    body: 16, sub: 30, subColor: '#2C3A46', h1: 24,
+    quote: { bg: '#F8F5FD', bar: '#C9B8E8', color: '#000000', size: 24 },
     hr: '#E4DBF2', th: '#F1EAFB',
     tone: '영·중·일 비교 · 한글 독음 병기',
-    rules: ['연하늘 형광펜 #EBF0FF · 강조 #0047FF', '3개국어 비교 표', '하단 사전 각주·독음 병기'],
+    rules: ['본문 16px · 연하늘 형광펜 #EBF0FF', '소제목 30px · 강조 #0047FF', '3개국어 비교 표 · 독음 병기'],
     closing: ['🌏 워드데스크 정리', '뜻은 같아도 쓰임은 다릅니다. 워드데스크였습니다 🌏'],
   },
   {
     id: 'mybodydesk', name: '내몸데스크', emoji: '🌿', handle: 'mybodydesk',
     badge: '#1F7A5C', accent: '#1F7A5C',
-    hl: '#c2f4db', boldColor: '#1F7A5C', boldSize: 19,
-    body: 15, sub: 30, subColor: '#1F7A5C', subBar: '#8FD4B4', h1: 24,
-    quote: { bg: '#F4FBF7', bar: '#A8E2C6', color: '#1F5A45' },
+    hl: '#C2F4DB', hlSize: 19, boldColor: '#1F7A5C', boldSize: 19,
+    body: 16, sub: 30, subColor: '#1F7A5C', h1: 24,
+    quote: { bg: '#F4FBF7', bar: '#A8E2C6', color: '#1F5A45', size: 24 },
     hr: '#D9EDE3', th: '#e5fcf0',
     tone: '차분한 해요체 · 2,100~2,500자',
-    rules: ['포인트 #1F7A5C · 형광펜 C2F4DB', '소제목 30pt · 강조 19pt', '소제목당 형광펜 1개 · 강조와 동시 금지'],
+    rules: ['포인트 #1F7A5C · 형광펜 C2F4DB', '본문 16px · 소제목 30px · 강조 19px', '소제목당 형광펜 1개 · 강조와 동시 금지'],
     target: [2100, 2500],
     closing: ['🌿 내몸데스크 한 줄', '오늘 하루, 몸에 맞는 선택 하나면 충분합니다. 내몸데스크였습니다 🌿'],
   },
   {
     id: 'spobriefing', name: '스포브리핑', emoji: '⚾', handle: 'spobriefing',
     badge: '#1F3864', accent: '#C0392B',
-    hl: '#FFE1E1', boldColor: '#1F3864', boldSize: 0,
-    body: 15, sub: 17, subColor: '#1F3864', subBar: '#C0392B', h1: 22,
-    quote: { bg: '#F5F7FC', bar: '#B9C4DA', color: '#1F3864' },
+    hl: '#FFE1E1', hlSize: 19, boldColor: '#1F3864', boldSize: 0,
+    body: 16, sub: 30, subColor: '#1F3864', h1: 24,
+    quote: { bg: '#F5F7FC', bar: '#B9C4DA', color: '#1F3864', size: 24 },
     hr: '#DDE2EE', th: '#FFE9E6',
     tone: '레드/네이비 · 3분 브리핑',
-    rules: ['스포츠 레드/네이비 형광펜 #FFE1E1', '3분 브리핑 요약 박스'],
+    rules: ['본문 16px · 형광펜 #FFE1E1', '소제목 30px · 첫인사 없음', '3분 브리핑 요약 박스'],
     closing: ['⚾ 3분 브리핑', '핵심만 빠르게 정리했습니다. 스포브리핑이었습니다 ⚾'],
   },
   {
     id: 'jjinjjin', name: '찐찡이네', emoji: '🍼', handle: 'jjinjjin',
     badge: '#E8A657', accent: '#C97E3C',
-    hl: '#FFF3B0', boldColor: '#A9662F', boldSize: 0,
-    body: 15, sub: 17, subColor: '#6B4A2F', subBar: '#EBC07A', h1: 22,
-    quote: { bg: '#FFFBF2', bar: '#F0D399', color: '#6B4A2F' },
+    hl: '#FFF3B0', hlSize: 19, boldColor: '#A9662F', boldSize: 0,
+    body: 16, sub: 30, subColor: '#6B4A2F', h1: 24,
+    quote: { bg: '#FFFBF2', bar: '#F0D399', color: '#6B4A2F', size: 24 },
     hr: '#F0E4D2', th: '#FFF7DC',
     tone: '다정한 해요체 · 신생아 육아 기록',
-    rules: ['15pt 본문 · 연노랑 형광펜 #FFF3B0', '육아 기록 톤 · 날짜·개월 수 강조'],
+    rules: ['본문 16px · 연노랑 형광펜 #FFF3B0', '소제목 30px · 첫인사 없음', '육아 기록 톤 · 날짜·개월 수 강조'],
     closing: ['🍼 찐찡이네 한 줄', '쭈니의 하루를 담아둡니다. 찐찡이네였습니다 🍼'],
   },
 ];
@@ -2173,11 +2181,15 @@ function ftBlog() { return FT_BLOGS.find((b) => b.id === FT.blog) || FT_BLOGS[0]
 
 function ftSample() {
   const b = ftBlog();
-  return [
+  const head = [
     '# ' + b.name + ' 샘플 제목입니다',
     '',
     '> 여기는 인용구 훅 자리예요. 두 줄 안으로 짧게 씁니다.',
     '',
+  ];
+  // 첫인사는 예지브러리에만 있다 — 실제 글처럼 인용구 바로 다음에 넣는다.
+  if (b.greet) head.push(b.greet, '');
+  return head.concat([
     '## 소제목 하나',
     '',
     '본문 문장입니다. **중요한 단어**는 굵게, ==핵심 문장==은 형광펜으로 칠해집니다.',
@@ -2198,7 +2210,7 @@ function ftSample() {
     '---',
     '',
     '마지막 문단입니다. [참고 링크](https://blog.naver.com/)도 이렇게 넣을 수 있어요.',
-  ].join('\n');
+  ]).join('\n');
 }
 
 /* 빈 줄·문단 간격 정리 */
@@ -2208,6 +2220,53 @@ function ftClean(txt) {
     .replace(/[ \t]+$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/* ── 입력창 도구 두 가지 (2026-11-20 요청) ────────────────────────
+   빈줄정리: 빈 줄이 2줄 이상 연속된 곳만 빈 줄 1줄로(1줄짜리 빈 줄은 그대로)
+   빈줄넣기: 소제목(#·##·### 및 쌩텍스트 소제목) 앞뒤에 빈 줄 1줄 — 중복 빈 줄은 1줄로 */
+function ftSquashBlank(txt) {
+  return String(txt || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n(?:[ \t]*\n)+/g, '\n\n');
+}
+
+/* 소제목으로 볼 행 번호 — 마크다운 #·##·### + ftHeadText가 감지하는 쌩텍스트 소제목 줄 */
+const FT_HEAD_CONT = /(는데|지만|면서|니까|으면|하고|해서|이며|거나|든지|라고|다고|라서|어서|아서|었고|였고)$/;
+function ftHeadLines(lines) {
+  const set = new Set();
+  lines.forEach((ln, i) => {
+    const t = ln.trim();
+    if (!t) return;
+    if (/^#{1,3}\s+\S/.test(t)) { set.add(i); return; }               // 마크다운 소제목
+    if (FT_HEAD_CONT.test(t.replace(/[?!~.]+$/, ''))) return;          // 문장이 이어지는 줄
+    if (ftHeadText({ s: t })) set.add(i);                              // 쌩텍스트 소제목
+  });
+  return set;
+}
+
+function ftAddBlank(txt) {
+  const lines = String(txt || '').replace(/\r\n?/g, '\n').split('\n').map((l) => l.replace(/[ \t]+$/, ''));
+  const heads = ftHeadLines(lines);
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    if (heads.has(i)) {
+      while (out.length && out[out.length - 1].trim() === '') out.pop();   // 앞 빈 줄 정리
+      if (out.length) out.push('');
+      out.push(ln.trim());
+      out.push('');
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() === '') j++;              // 뒤 빈 줄은 하나만
+      i = j - 1;
+      continue;
+    }
+    if (ln.trim() === '' && (!out.length || out[out.length - 1].trim() === '')) continue;
+    out.push(ln);
+  }
+  while (out.length && out[out.length - 1].trim() === '') out.pop();
+  return out.join('\n');
 }
 
 const FT_HR = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
@@ -2343,7 +2402,25 @@ function ftPickSentence(txt) {
   return pick || null;
 }
 
-/* 자동 서식: 쌩 텍스트 소제목 승격 + 핵심 문장 형광펜 + 기준일 문구 */
+/* 첫인사 자동 문단 — 예지브러리에만 있다(실제 발행 글 확인: 나머지 블로그는 첫인사 없음) */
+const FT_GREET_RE = /(안녕하세요|예브\s*예요|예브입니다)/;
+function ftBlockText(bk) {
+  if (!bk) return '';
+  if (bk.items) return bk.items.join(' ');
+  if (bk.rows) return bk.rows.map((r) => r.join(' ')).join(' ');
+  return bk.s || '';
+}
+function ftAutoGreet(blocks, b) {
+  if (!b.greet) return blocks;                                  // 예지브러리 외에는 넣지 않는다
+  if (FT_GREET_RE.test(blocks.slice(0, 3).map(ftBlockText).join(' '))) return blocks;  // 앞 3줄에 이미 있으면 그대로
+  let at = 0;
+  while (at < blocks.length && (blocks[at].t === 'h1' || blocks[at].t === 'q')) at++;  // 제목·인용구 훅 다음
+  const out = blocks.slice();
+  out.splice(at, 0, { t: 'greet', s: b.greet });
+  return out;
+}
+
+/* 자동 서식: 쌩 텍스트 소제목 승격 + 핵심 문장 형광펜 + 기준일 문구 + 예지브러리 첫인사 */
 function ftAuto(blocks, b) {
   blocks = ftAutoHeads(blocks);
   let used = false;
@@ -2371,31 +2448,31 @@ function ftAuto(blocks, b) {
       out.splice(at + 1, 0, { t: 'note', s: '※ 이 글의 금액·조건은 ' + d.getUTCFullYear() + '년 ' + (d.getUTCMonth() + 1) + '월 기준입니다.' });
     }
   }
-  return out;
+  return ftAutoGreet(out, b);
 }
 
-/* 인라인 표시 → HTML (이스케이프 후) */
+/* 인라인 표시 → HTML (이스케이프 후) — 실제 글처럼 형광펜 문장은 19px·굵게 */
 function ftInline(s, b) {
   let t = esc(s);
   t = t.replace(/\[([^<>\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_, x, u) => '<a href="' + u + '" style="color:' + b.accent + ';text-decoration:underline;">' + x + '</a>');
-  t = t.replace(/\*\*([^<>]+?)\*\*/g, (_, x) => '<b style="' + (b.boldSize ? 'font-size:' + b.boldSize + 'pt;' : '') + 'font-weight:700;color:' + b.boldColor + ';">' + x + '</b>');
-  t = t.replace(/==([^<>]+?)==/g, (_, x) => '<span style="background-color:' + b.hl + ';">' + x + '</span>');
+  t = t.replace(/\*\*([^<>]+?)\*\*/g, (_, x) => '<b style="' + (b.boldSize ? 'font-size:' + b.boldSize + 'px;' : '') + 'font-weight:700;color:' + b.boldColor + ';">' + x + '</b>');
+  t = t.replace(/==([^<>]+?)==/g, (_, x) => '<span style="background-color:' + b.hl + ';' + (b.hlSize ? 'font-size:' + b.hlSize + 'px;' : '') + 'font-weight:700;">' + x + '</span>');
   return t.replace(/\n/g, '<br>');
 }
 
 function ftBlockHTML(bk, b) {
   const tcol = b.text || '#3B3330';                                  // 블로그별 본문 글자색(기본 #3B3330)
-  const bodyP = 'font-size:' + b.body + 'pt;line-height:1.9;margin:0 0 16px;color:' + tcol + ';word-break:keep-all;';
-  if (bk.t === 'h1') return '<p style="font-size:' + b.h1 + 'pt;font-weight:800;line-height:1.45;margin:0 0 20px;color:#2F2622;word-break:keep-all;">' + ftInline(bk.s, b) + '</p>';
-  if (bk.t === 'h2') return '<p style="font-size:' + b.sub + 'pt;font-weight:700;line-height:1.5;margin:30px 0 12px;color:' + b.subColor + ';word-break:keep-all;"><span style="border-left:4px solid ' + b.subBar + ';padding-left:10px;">' + ftInline(bk.s, b) + '</span></p>';
-  if (bk.t === 'h3') return '<p style="font-size:' + Math.max(14, b.sub - 3) + 'pt;font-weight:700;line-height:1.55;margin:22px 0 10px;color:' + b.subColor + ';">' + ftInline(bk.s, b) + '</p>';
-  if (bk.t === 'sub') return '<p style="font-size:' + Math.min(b.sub, 22) + 'pt;font-weight:700;line-height:1.5;margin:30px 0 12px;color:' + b.subColor + ';"><span style="border-left:4px solid ' + b.subBar + ';padding-left:10px;">' + ftInline(bk.s, b) + '</span></p>';
+  const bodyP = 'font-size:' + b.body + 'px;line-height:1.9;margin:0 0 16px;color:' + tcol + ';word-break:keep-all;';
+  if (bk.t === 'h1') return '<p style="font-size:' + b.h1 + 'px;font-weight:800;line-height:1.45;margin:0 0 20px;color:' + b.subColor + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'h2' || bk.t === 'sub') return '<p style="font-size:' + b.sub + 'px;font-weight:700;line-height:1.5;margin:30px 0 12px;color:' + b.subColor + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'h3') return '<p style="font-size:' + Math.max(18, b.sub - 10) + 'px;font-weight:700;line-height:1.55;margin:22px 0 10px;color:' + b.subColor + ';">' + ftInline(bk.s, b) + '</p>';
   if (bk.t === 'p') return '<p style="' + bodyP + '">' + ftInline(bk.s, b) + '</p>';
-  if (bk.t === 'note') return '<p style="font-size:' + Math.max(11, b.body - 2) + 'pt;line-height:1.7;margin:0 0 16px;color:#8A7A72;">' + ftInline(bk.s, b) + '</p>';
-  if (bk.t === 'q') return '<div style="background-color:' + b.quote.bg + ';border-left:4px solid ' + b.quote.bar + ';border-radius:8px;padding:16px 18px;margin:0 0 18px;"><p style="font-size:' + Math.max(13, b.body - 1) + 'pt;line-height:1.85;margin:0;color:' + b.quote.color + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p></div>';
-  if (bk.t === 'hr') return '<p style="border-top:1px solid ' + b.hr + ';margin:30px 0;font-size:1pt;line-height:1;">&nbsp;</p>';
+  if (bk.t === 'greet') return '<p style="' + bodyP + '">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'note') return '<p style="font-size:' + Math.max(12, b.body - 3) + 'px;line-height:1.7;margin:0 0 16px;color:#8A7A72;">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'q') return '<div style="background-color:' + b.quote.bg + ';border-left:4px solid ' + b.quote.bar + ';border-radius:8px;padding:16px 18px;margin:0 0 18px;"><p style="font-size:' + (b.quote.size || 24) + 'px;font-weight:700;line-height:1.85;margin:0;color:' + b.quote.color + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p></div>';
+  if (bk.t === 'hr') return '<p style="border-top:1px solid ' + b.hr + ';margin:30px 0;font-size:1px;line-height:1;">&nbsp;</p>';
   if (bk.t === 'ul' || bk.t === 'ol') {
-    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'pt;line-height:1.8;margin:0 0 6px;padding-left:4px;color:' + tcol + ';">' + (bk.t === 'ul' ? '• ' : (i + 1) + '. ') + ftInline(it, b) + '</p>').join('');
+    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'px;line-height:1.8;margin:0 0 6px;padding-left:4px;color:' + tcol + ';">' + (bk.t === 'ul' ? '• ' : (i + 1) + '. ') + ftInline(it, b) + '</p>').join('');
   }
   if (bk.t === 'table') {
     const rows = bk.rows.map((cells, ri) => {
@@ -2403,7 +2480,7 @@ function ftBlockHTML(bk, b) {
       const st = 'border:1px solid ' + b.hr + ';padding:8px 10px;' + (ri === 0 ? 'background-color:' + b.th + ';font-weight:700;color:' + b.subColor + ';' : 'color:' + tcol + ';');
       return '<tr>' + cells.map((c) => '<' + tag + ' style="' + st + '">' + ftInline(c, b) + '</' + tag + '>').join('') + '</tr>';
     }).join('');
-    return '<table style="border-collapse:collapse;width:100%;margin:0 0 18px;font-size:' + Math.max(12, b.body - 1) + 'pt;">' + rows + '</table>';
+    return '<table style="border-collapse:collapse;width:100%;margin:0 0 18px;font-size:' + Math.max(13, b.body - 1) + 'px;">' + rows + '</table>';
   }
   return '';
 }
@@ -2526,6 +2603,18 @@ function ftInit() {
   });
   $('#ftAuto').addEventListener('change', (e) => { FT.auto = e.target.checked; ftRender(); ftSave(); });
   $('#ftSample').onclick = () => { ta.value = ftSample(); ftRender(); ftSave(); };
+  $('#ftTidy').onclick = () => {
+    if (!ta.value.trim()) { toast('원고를 먼저 붙여넣어 주세요'); return; }
+    const v = ftSquashBlank(ta.value);
+    if (v === ta.value) { toast('빈 줄이 이미 깔끔해요'); return; }
+    ta.value = v; ftRender(); ftSave(); toast('연속 빈 줄을 한 줄로 정리했어요');
+  };
+  $('#ftHeads').onclick = () => {
+    if (!ta.value.trim()) { toast('원고를 먼저 붙여넣어 주세요'); return; }
+    const v = ftAddBlank(ta.value);
+    if (v === ta.value) { toast('소제목 앞뒤 빈 줄이 이미 맞아요'); return; }
+    ta.value = v; ftRender(); ftSave(); toast('소제목 앞뒤에 빈 줄을 넣었어요');
+  };
   $('#ftClear').onclick = () => { ta.value = ''; ftRender(); ftSave(); };
   $('#ftCopy').onclick = ftCopy;
   $('#ftSelect').onclick = () => {
@@ -2553,6 +2642,9 @@ window.__ft = {
   presets: FT_BLOGS,
   build: ftBuild,
   parse: ftParse,
+  sample: ftSample,
+  tidy: ftSquashBlank,
+  blankHeads: ftAddBlank,
   blog: (id) => { FT.blog = id; $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === id)); ftRender(); },
   auto: (v) => { FT.auto = !!v; $('#ftAuto').checked = !!v; ftRender(); },
 };
