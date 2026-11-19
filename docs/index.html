@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#FAF5EF">
 <meta name="description" content="예지브러리 예브의 6개 블로그 1주 챌린지 대시보드">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>">
-<link rel="stylesheet" href="assets/app.css?v=11200423">
+<link rel="stylesheet" href="assets/app.css?v=11200450">
 </head>
 <body>
 
@@ -39,6 +39,7 @@
         <button data-tab="challenge">챌린지 현황</button>
         <button data-tab="materials">오늘의 소재</button>
         <button data-tab="scorer">🎯 홈판 제목</button>
+        <button data-tab="formatter">✨ 서식 변환</button>
         <button data-tab="merge">이미지 합성</button>
       </nav>
       <div class="topbar-right">
@@ -53,6 +54,60 @@
     <section class="view hidden" id="view-challenge"></section>
     <section class="view hidden" id="view-materials"></section>
     <section class="view hidden" id="view-scorer"></section>
+    <section class="view hidden" id="view-formatter">
+      <div class="sec">
+        <div class="hero" style="padding:18px 20px">
+          <div class="hero-top">
+            <div class="avatar">✨</div>
+            <div>
+              <h2>서식 변환기</h2>
+              <div class="hero-sub">원고를 붙여넣고 블로그만 고르면 그 블로그 서식으로 · 서식째 복사해 네이버 에디터에 붙여넣기</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec card card-pad">
+        <div class="ft-picks" id="ftPicks"></div>
+        <div class="ft-rules" id="ftRules"></div>
+
+        <div class="ft-tools">
+          <label class="ft-switch"><input type="checkbox" id="ftAuto" checked><span class="sw"></span><span class="lb">자동 서식 다듬기</span></label>
+          <span class="ft-tools-note">빈 줄 정리 · 핵심 문장 형광펜 · 마무리 문구 자동</span>
+          <div class="ft-tools-btns">
+            <button class="btn ghost sm" id="ftSample">샘플</button>
+            <button class="btn ghost sm" id="ftClear">비우기</button>
+          </div>
+        </div>
+
+        <div class="ft-split">
+          <div class="ft-col">
+            <div class="ft-col-head"><b>원고</b><span id="ftCount">0자</span></div>
+            <textarea id="ftInput" class="ft-input" spellcheck="false" placeholder="여기에 원고를 붙여넣으세요.&#10;&#10;# 제목&#10;> 인용구 훅 두 줄&#10;## 소제목&#10;본문 문장에 **굵게** 와 ==형광펜== 을 쓸 수 있어요&#10;- 목록&#10;---&#10;마무리 문구는 자동으로 붙습니다"></textarea>
+            <div class="ft-help">
+              <b>쓸 수 있는 표시</b>
+              <span><code>#</code> 제목</span><span><code>##</code> 소제목</span><span><code>**굵게**</code></span><span><code>==형광펜==</code></span><span><code>&gt;</code> 인용구</span><span><code>---</code> 구분선</span><span><code>- 목록</code></span><span><code>| 표 |</code></span><span><code>[링크](주소)</code></span>
+            </div>
+            <div class="field ft-closing-field">
+              <label for="ftClosing">마무리 문구 (자동 삽입 · 한 줄에 한 문단, 첫 줄은 소제목)</label>
+              <textarea id="ftClosing" rows="3"></textarea>
+            </div>
+          </div>
+
+          <div class="ft-col ft-col-out">
+            <div class="ft-col-head"><b>미리보기</b><span id="ftPrevMeta">예지브러리 서식</span></div>
+            <div class="ft-post-wrap"><div class="ft-post" id="ftPreview"></div></div>
+          </div>
+        </div>
+
+        <div class="ft-copybar">
+          <button class="btn block ft-copy" id="ftCopy"><span class="lbl-full">📋 서식째 복사 (네이버 에디터용)</span><span class="lbl-short">📋 서식째 복사</span></button>
+          <button class="btn ghost sm ft-selectbtn" id="ftSelect"><span class="lbl-full">미리보기 전체 선택</span><span class="lbl-short">전체 선택</span></button>
+        </div>
+        <p class="ft-tip">💡 붙여넣기 후 네이버 전용 인용구 박스 디자인만 필요 시 에디터에서 한 번 눌러 주세요. 형광펜·굵기·소제목·구분선은 그대로 들어갑니다.</p>
+      </div>
+    </section>
+
     <section class="view hidden" id="view-merge">
       <div class="sec">
         <div class="hero" style="padding:18px 20px">
@@ -124,6 +179,6 @@
 <div class="toast" id="toast"></div>
 
 <input type="file" id="filePicker" accept="image/*" class="hidden">
-<script src="assets/app.js?v=11200423"></script>
+<script src="assets/app.js?v=11200450"></script>
 </body>
 </html>

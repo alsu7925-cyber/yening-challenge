@@ -1790,6 +1790,7 @@ function renderAll() {
   if (tab === 'challenge') renderChallenge();
   if (tab === 'materials') renderMaterials();
   if (tab === 'scorer') renderScorer();
+  if (tab === 'formatter') ftRender();
   if (tab === 'merge') { /* 정적 */ }
   $('#nav').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
 }
@@ -1918,6 +1919,7 @@ function switchTab(tab) {
   renderAll();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (tab === 'merge') mgRedraw();
+  if (tab === 'formatter') ftInit();
 }
 
 /* ───────────────────────── 이미지 합성 ───────────────────────── */
@@ -2078,6 +2080,415 @@ function mgSave(type, ext) {
     toast(ext.toUpperCase() + ' 저장했어요');
   }, type, 0.92);
 }
+
+/* ───────────────────────── ✨ 서식 변환기 ───────────────────────── */
+/* 블로그별 서식 프리셋 — memory/topics/blog-campaign-ops/docs/blog-formats.md 기준
+   · 내몸데스크는 문서 확정값(포인트 #1F7A5C · 형광펜 #c2f4db · 소제목 30pt · 강조 19pt · 표 #e5fcf0)을 그대로 쓴다. */
+const FT_BLOGS = [
+  {
+    id: 'ye_zib', name: '예지브러리', emoji: '📚', handle: 'ye_zib',
+    badge: '#C88189', accent: '#B26F79',
+    hl: '#FCE0E4', boldColor: '#B26F79', boldSize: 0,
+    body: 16, sub: 19, subColor: '#6E4B3F', subBar: '#DFA2A5', h1: 23,
+    quote: { bg: '#FFF8F6', bar: '#DFA2A5', color: '#6E4B3F' },
+    hr: '#EFE2DA', th: '#FBEAEC',
+    tone: '담백한 해요체 · 인용구 훅 2줄',
+    rules: ['16pt 본문 · 소프트 크림핑크 형광펜', '번호 없는 굵은 소제목', '💬 예브의 한마디 · 예지브러리였습니다 📚'],
+    closing: ['💬 예브의 한마디', '오늘도 예지브러리에 이야기 하나를 꽂아둡니다. 📚', '먹고, 써보고, 놀고! 예지브러리였습니다 📚'],
+  },
+  {
+    id: 'pick_moa', name: '픽모아', emoji: '🛍️', handle: 'pick_moa',
+    badge: '#3D6DB5', accent: '#2C5B9E',
+    hl: '#DDE9FA', boldColor: '#24466F', boldSize: 0,
+    body: 15, sub: 17, subColor: '#24466F', subBar: '#6E96CC', h1: 22,
+    quote: { bg: '#F5F9FE', bar: '#9DBBE6', color: '#24466F' },
+    hr: '#DCE6F2', th: '#E8F0FB',
+    tone: '담백한 해요체 · 스펙·요약 강조',
+    rules: ['IT·자동차 블루/슬레이트 형광펜', '핵심 스펙·한줄 요약 강조', '📱 픽모아였습니다 🛍️'],
+    closing: ['📱 픽모아 한줄 정리', '고른 기준과 아쉬운 점까지 담았습니다. 픽모아였습니다 🛍️'],
+  },
+  {
+    id: 'savedesk', name: '세이브데스크', emoji: '💰', handle: 'savedesk',
+    badge: '#1E8E6B', accent: '#0F6B52',
+    hl: '#D8F5E7', boldColor: '#0F6B52', boldSize: 0,
+    body: 15, sub: 17, subColor: '#14544A', subBar: '#5CBFA0', h1: 22,
+    quote: { bg: '#F2FBF7', bar: '#A9E0C9', color: '#14544A' },
+    hr: '#D8EDE4', th: '#E3F7EE',
+    tone: '합쇼체(~습니다) · 수치 강조',
+    rules: ['그린·에메랄드 형광펜으로 숫자 강조', '금액·조건 기준일 문구 자동', '💰 세이브데스크였습니다'],
+    autoNote: true,
+    closing: ['💰 세이브데스크 정리', '오늘 확인한 숫자만 챙겨 가시면 됩니다. 세이브데스크였습니다.'],
+  },
+  {
+    id: 'worddesk', name: '워드데스크', emoji: '🌏', handle: 'worddesk',
+    badge: '#7B5EA7', accent: '#5B3F86',
+    hl: '#E9E1F7', boldColor: '#4E3B72', boldSize: 0,
+    body: 15, sub: 17, subColor: '#4E3B72', subBar: '#A98FD0', h1: 22,
+    quote: { bg: '#F8F5FD', bar: '#C9B8E8', color: '#4E3B72' },
+    hr: '#E4DBF2', th: '#F1EAFB',
+    tone: '영·중·일 비교 · 한글 독음 병기',
+    rules: ['라벤더/퍼플 형광펜', '3개국어 비교 표', '하단 사전 각주·독음 병기'],
+    closing: ['🌏 워드데스크 정리', '뜻은 같아도 쓰임은 다릅니다. 워드데스크였습니다 🌏'],
+  },
+  {
+    id: 'mybodydesk', name: '내몸데스크', emoji: '🌿', handle: 'mybodydesk',
+    badge: '#1F7A5C', accent: '#1F7A5C',
+    hl: '#c2f4db', boldColor: '#1F7A5C', boldSize: 19,
+    body: 15, sub: 30, subColor: '#1F7A5C', subBar: '#8FD4B4', h1: 24,
+    quote: { bg: '#F4FBF7', bar: '#A8E2C6', color: '#1F5A45' },
+    hr: '#D9EDE3', th: '#e5fcf0',
+    tone: '차분한 해요체 · 2,100~2,500자',
+    rules: ['포인트 #1F7A5C · 형광펜 #c2f4db', '소제목 30pt · 강조 19pt', '소제목당 형광펜 1개 · 강조와 동시 금지'],
+    target: [2100, 2500],
+    closing: ['🌿 내몸데스크 한 줄', '오늘 하루, 몸에 맞는 선택 하나면 충분합니다. 내몸데스크였습니다 🌿'],
+  },
+  {
+    id: 'spobriefing', name: '스포브리핑', emoji: '⚾', handle: 'spobriefing',
+    badge: '#1F3864', accent: '#C0392B',
+    hl: '#FFE1E1', boldColor: '#1F3864', boldSize: 0,
+    body: 15, sub: 17, subColor: '#1F3864', subBar: '#C0392B', h1: 22,
+    quote: { bg: '#F5F7FC', bar: '#B9C4DA', color: '#1F3864' },
+    hr: '#DDE2EE', th: '#FFE9E6',
+    tone: '레드/네이비 · 3분 브리핑',
+    rules: ['스포츠 레드/네이비 형광펜', '3분 브리핑 요약 박스', '⚾ 스포브리핑이었습니다'],
+    closing: ['⚾ 3분 브리핑', '핵심만 빠르게 정리했습니다. 스포브리핑이었습니다 ⚾'],
+  },
+];
+
+const FT = { blog: 'ye_zib', auto: true, bound: false, built: null };
+
+function ftBlog() { return FT_BLOGS.find((b) => b.id === FT.blog) || FT_BLOGS[0]; }
+
+function ftSample() {
+  const b = ftBlog();
+  return [
+    '# ' + b.name + ' 샘플 제목입니다',
+    '',
+    '> 여기는 인용구 훅 자리예요. 두 줄 안으로 짧게 씁니다.',
+    '',
+    '## 소제목 하나',
+    '',
+    '본문 문장입니다. **중요한 단어**는 굵게, ==핵심 문장==은 형광펜으로 칠해집니다.',
+    '',
+    '- 첫 번째 항목',
+    '- 두 번째 항목',
+    '- 세 번째 항목',
+    '',
+    '## 소제목 둘',
+    '',
+    '숫자가 들어간 문장은 자동 서식에서 형광펜이 붙습니다. 하루 2,100자 분량을 권장합니다.',
+    '',
+    '| 구분 | 표기 | 뜻 |',
+    '| --- | --- | --- |',
+    '| 예시 | example | 보기 |',
+    '| 비교 | compare | 견주기 |',
+    '',
+    '---',
+    '',
+    '마지막 문단입니다. [참고 링크](https://blog.naver.com/)도 이렇게 넣을 수 있어요.',
+  ].join('\n');
+}
+
+/* 빈 줄·문단 간격 정리 */
+function ftClean(txt) {
+  return String(txt || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+const FT_HR = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
+const FT_SEP = /^\|?[\s:|-]+\|?[\s:|-]*$/;
+
+/* 원고 → 블록 */
+function ftParse(src) {
+  const lines = ftClean(src).split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (!line) { i++; continue; }
+
+    if (FT_HR.test(line)) { out.push({ t: 'hr' }); i++; continue; }
+
+    if (line.charAt(0) === '|' && lines[i + 1] && FT_SEP.test(lines[i + 1].trim()) && lines[i + 1].indexOf('-') >= 0) {
+      const rows = [];
+      let j = i;
+      while (j < lines.length && lines[j].trim().charAt(0) === '|') { rows.push(lines[j].trim()); j++; }
+      const cells = rows.filter((r, idx) => !(idx === 1 && FT_SEP.test(r) && r.indexOf('-') >= 0))
+        .map((r) => r.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim()));
+      out.push({ t: 'table', rows: cells });
+      i = j; continue;
+    }
+
+    if (line.indexOf('> ') === 0 || line === '>') {
+      const parts = [];
+      while (i < lines.length && lines[i].trim().indexOf('>') === 0) {
+        parts.push(lines[i].trim().replace(/^>\s?/, '').trim());
+        i++;
+      }
+      out.push({ t: 'q', s: parts.filter(Boolean).join('\n') });
+      continue;
+    }
+
+    let m = line.match(/^(#{1,3})\s+(.*)$/);
+    if (m) { out.push({ t: 'h' + m[1].length, s: m[2].trim() }); i++; continue; }
+
+    if (/^[-*+]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^[-*+]\s+/.test(lines[i].trim())) {
+        items.push(lines[i].trim().replace(/^[-*+]\s+/, '')); i++;
+      }
+      out.push({ t: 'ul', items }); continue;
+    }
+
+    if (/^\d+[.)]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\d+[.)]\s+/.test(lines[i].trim())) {
+        items.push(lines[i].trim().replace(/^\d+[.)]\s+/, '')); i++;
+      }
+      out.push({ t: 'ol', items }); continue;
+    }
+
+    out.push({ t: 'p', s: line }); i++;
+  }
+  return out;
+}
+
+const FT_KEYS = /(핵심|중요|주의|포인트|결론|요약|추천|무료|할인|최대|최소|기준|원|%|개월|시간|칼로리|mg|ml|g\b)/;
+
+/* 형광펜 칠할 문장 고르기 — 숫자 있는 문장 우선, 없으면 핵심어 */
+function ftPickSentence(txt) {
+  const plain = String(txt).replace(/\*\*|==/g, '');
+  const sents = plain.split(/(?<=[.!?])\s+|(?<=다\.)\s*/).map((s) => s.trim()).filter((s) => s.length > 8);
+  let pick = sents.find((s) => /\d/.test(s));
+  if (!pick) pick = sents.find((s) => FT_KEYS.test(s));
+  return pick || null;
+}
+
+/* 자동 서식: 핵심 문장 형광펜 + 기준일 문구 + 마무리 */
+function ftAuto(blocks, b) {
+  let used = false;
+  let hasBold = false;
+  const out = blocks.map((bk) => {
+    if (bk.t === 'h1' || bk.t === 'h2' || bk.t === 'h3') { used = false; hasBold = false; return bk; }
+    if (bk.t !== 'p') return bk;
+    if (bk.s.indexOf('==') >= 0) { used = true; return bk; }
+    if (bk.s.indexOf('**') >= 0) hasBold = true;
+    if (used || hasBold) return bk;
+    if (b.id === 'mybodydesk' && hasBold) return bk;
+    const pick = ftPickSentence(bk.s);
+    if (!pick) return bk;
+    const idx = bk.s.indexOf(pick);
+    if (idx < 0) return bk;
+    used = true;
+    return Object.assign({}, bk, { s: bk.s.slice(0, idx) + '==' + pick + '==' + bk.s.slice(idx + pick.length) });
+  });
+
+  if (b.autoNote) {
+    let at = -1;
+    for (let i = 0; i < out.length; i++) { if (out[i].t === 'p') { at = i; break; } }
+    if (at >= 0) {
+      const d = new Date(Date.now() + KST_OFF);
+      out.splice(at + 1, 0, { t: 'note', s: '※ 이 글의 금액·조건은 ' + d.getUTCFullYear() + '년 ' + (d.getUTCMonth() + 1) + '월 기준입니다.' });
+    }
+  }
+  return out;
+}
+
+/* 인라인 표시 → HTML (이스케이프 후) */
+function ftInline(s, b) {
+  let t = esc(s);
+  t = t.replace(/\[([^<>\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_, x, u) => '<a href="' + u + '" style="color:' + b.accent + ';text-decoration:underline;">' + x + '</a>');
+  t = t.replace(/\*\*([^<>]+?)\*\*/g, (_, x) => '<b style="' + (b.boldSize ? 'font-size:' + b.boldSize + 'pt;' : '') + 'font-weight:700;color:' + b.boldColor + ';">' + x + '</b>');
+  t = t.replace(/==([^<>]+?)==/g, (_, x) => '<span style="background-color:' + b.hl + ';">' + x + '</span>');
+  return t.replace(/\n/g, '<br>');
+}
+
+function ftBlockHTML(bk, b) {
+  const bodyP = 'font-size:' + b.body + 'pt;line-height:1.9;margin:0 0 16px;color:#3B3330;word-break:keep-all;';
+  if (bk.t === 'h1') return '<p style="font-size:' + b.h1 + 'pt;font-weight:800;line-height:1.45;margin:0 0 20px;color:#2F2622;word-break:keep-all;">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'h2') return '<p style="font-size:' + b.sub + 'pt;font-weight:700;line-height:1.5;margin:30px 0 12px;color:' + b.subColor + ';word-break:keep-all;"><span style="border-left:4px solid ' + b.subBar + ';padding-left:10px;">' + ftInline(bk.s, b) + '</span></p>';
+  if (bk.t === 'h3') return '<p style="font-size:' + Math.max(14, b.sub - 3) + 'pt;font-weight:700;line-height:1.55;margin:22px 0 10px;color:' + b.subColor + ';">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'sub') return '<p style="font-size:' + Math.min(b.sub, 22) + 'pt;font-weight:700;line-height:1.5;margin:30px 0 12px;color:' + b.subColor + ';"><span style="border-left:4px solid ' + b.subBar + ';padding-left:10px;">' + ftInline(bk.s, b) + '</span></p>';
+  if (bk.t === 'p') return '<p style="' + bodyP + '">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'note') return '<p style="font-size:' + Math.max(11, b.body - 2) + 'pt;line-height:1.7;margin:0 0 16px;color:#8A7A72;">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'q') return '<div style="background-color:' + b.quote.bg + ';border-left:4px solid ' + b.quote.bar + ';border-radius:8px;padding:16px 18px;margin:0 0 18px;"><p style="font-size:' + Math.max(13, b.body - 1) + 'pt;line-height:1.85;margin:0;color:' + b.quote.color + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p></div>';
+  if (bk.t === 'hr') return '<p style="border-top:1px solid ' + b.hr + ';margin:30px 0;font-size:1pt;line-height:1;">&nbsp;</p>';
+  if (bk.t === 'ul' || bk.t === 'ol') {
+    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'pt;line-height:1.8;margin:0 0 6px;padding-left:4px;color:#3B3330;">' + (bk.t === 'ul' ? '• ' : (i + 1) + '. ') + ftInline(it, b) + '</p>').join('');
+  }
+  if (bk.t === 'table') {
+    const rows = bk.rows.map((cells, ri) => {
+      const tag = ri === 0 ? 'th' : 'td';
+      const st = 'border:1px solid ' + b.hr + ';padding:8px 10px;' + (ri === 0 ? 'background-color:' + b.th + ';font-weight:700;color:' + b.subColor + ';' : 'color:#3B3330;');
+      return '<tr>' + cells.map((c) => '<' + tag + ' style="' + st + '">' + ftInline(c, b) + '</' + tag + '>').join('') + '</tr>';
+    }).join('');
+    return '<table style="border-collapse:collapse;width:100%;margin:0 0 18px;font-size:' + Math.max(12, b.body - 1) + 'pt;">' + rows + '</table>';
+  }
+  return '';
+}
+
+function ftPlain(blocks) {
+  const strip = (s) => String(s || '').replace(/==|\*\*/g, '').replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1 ($2)');
+  return blocks.map((bk) => {
+    if (bk.t === 'hr') return '──────────';
+    if (bk.t === 'ul') return bk.items.map((i) => '• ' + strip(i)).join('\n');
+    if (bk.t === 'ol') return bk.items.map((i, n) => (n + 1) + '. ' + strip(i)).join('\n');
+    if (bk.t === 'table') return bk.rows.map((r) => r.map(strip).join(' | ')).join('\n');
+    return strip(bk.s);
+  }).filter(Boolean).join('\n\n');
+}
+
+/* 미리보기 = 복사본과 같은 HTML */
+function ftBuild() {
+  const b = ftBlog();
+  let blocks = ftParse($('#ftInput') ? $('#ftInput').value : '');
+  const closeLines = ($('#ftClosing') ? $('#ftClosing').value : '').split('\n').map((s) => s.trim()).filter(Boolean);
+  if (FT.auto) {
+    blocks = ftAuto(blocks, b);
+    if (closeLines.length) closeLines.forEach((s, i) => blocks.push(i === 0 ? { t: 'sub', s } : { t: 'p', s }));
+  }
+  const html = blocks.length
+    ? '<div style="color:#3B3330;word-break:keep-all;">' + blocks.map((bk) => ftBlockHTML(bk, b)).filter(Boolean).join('') + '</div>'
+    : '';
+  return { html, text: ftPlain(blocks), blocks, blog: b };
+}
+
+function ftRender() {
+  if (!FT.bound) return;
+  const b = ftBlog();
+  const src = $('#ftInput').value;
+  const out = ftBuild();
+  const prev = $('#ftPreview');
+  if (!src.trim()) {
+    prev.innerHTML = '<div class="ft-empty">원고를 붙여넣으면 여기에 <b>' + esc(b.name) + '</b> 서식으로 바로 보여요.<br>샘플 버튼으로 한 번 확인해 보세요.</div>';
+    $('#ftCount').textContent = '0자';
+  } else {
+    prev.innerHTML = out.html;
+    const nsp = out.text.replace(/\s/g, '').length;
+    let cnt = nsp.toLocaleString('ko-KR') + '자 (공백 제외)';
+    if (b.target) {
+      const ok = nsp >= b.target[0] && nsp <= b.target[1] * 1.08;
+      cnt += ' · 목표 ' + b.target[0].toLocaleString('ko-KR') + '~' + b.target[1].toLocaleString('ko-KR') + '자' + (ok ? ' ✓' : '');
+    }
+    $('#ftCount').textContent = cnt;
+  }
+  $('#ftPrevMeta').textContent = b.name + ' 서식 · ' + b.tone;
+  $('#ftRules').innerHTML = b.rules.map((r) => '<span>' + esc(r) + '</span>').join('');
+  $('#ftClear').classList.toggle('hidden', !src.trim());
+}
+
+/* 구형·모바일 폴백: contenteditable + execCommand('copy') */
+function ftCopyLegacy(html, text) {
+  try {
+    const host = document.createElement('div');
+    host.contentEditable = 'true';
+    host.setAttribute('aria-hidden', 'true');
+    host.style.cssText = 'position:fixed;left:0;top:0;width:10px;height:10px;overflow:hidden;opacity:0;z-index:-1;user-select:text;-webkit-user-select:text;';
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(host);
+    sel.removeAllRanges(); sel.addRange(range);
+    const ok = document.execCommand('copy');
+    sel.removeAllRanges();
+    document.body.removeChild(host);
+    if (ok) return Promise.resolve(true);
+  } catch (e) { /* 아래 평문 */ }
+  return copyText(text);
+}
+
+function ftCopy() {
+  const out = ftBuild();
+  if (!out.html) { toast('원고를 먼저 붙여넣어 주세요'); return; }
+  let p = null;
+  // 1) 표준 Clipboard API — ClipboardItem 은 제스처 안에서 바로 만든다(iOS 사파리)
+  if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
+    try {
+      const item = new ClipboardItem({
+        'text/html': new Blob([out.html], { type: 'text/html' }),
+        'text/plain': new Blob([out.text], { type: 'text/plain' }),
+      });
+      p = navigator.clipboard.write([item]).then(() => true, () => false);
+    } catch (e) { p = null; }
+  }
+  Promise.resolve(p).then((ok) => (ok ? true : ftCopyLegacy(out.html, out.text))).then((ok) => {
+    if (ok) toast('서식째 복사했어요 · 네이버 에디터에 붙여넣기 ✨');
+    else toast('복사가 막혔어요 · 미리보기를 길게 눌러 전체 복사해 주세요');
+  });
+}
+
+function ftInit() {
+  if (FT.bound) { ftRender(); return; }
+  FT.bound = true;
+
+  $('#ftPicks').innerHTML = FT_BLOGS.map((b) =>
+    '<button class="ft-pick" data-ftblog="' + b.id + '">' +
+    '<span class="bd" style="background:' + b.badge + '">' + b.emoji + '</span>' +
+    '<span class="tx"><span class="nm">' + esc(b.name) + '</span><span class="sk" style="background:' + b.hl + '"></span></span>' +
+    '</button>').join('');
+
+  const saved = LS.get('yc.ft', null);
+  if (saved) {
+    if (saved.blog && FT_BLOGS.some((b) => b.id === saved.blog)) FT.blog = saved.blog;
+    FT.auto = saved.auto !== false;
+  }
+  const ta = $('#ftInput');
+  if (saved && typeof saved.text === 'string') ta.value = saved.text;
+  const cl = $('#ftClosing');
+  if (saved && saved.closingDirty && typeof saved.closing === 'string') { cl.value = saved.closing; cl.dataset.dirty = '1'; }
+  else cl.value = ftBlog().closing.join('\n');
+  $('#ftAuto').checked = FT.auto;
+  $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === FT.blog));
+
+  let timer = 0;
+  ta.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { ftRender(); ftSave(); }, 200); });
+  cl.addEventListener('input', () => { cl.dataset.dirty = '1'; ftRender(); ftSave(); });
+  $('#ftPicks').addEventListener('click', (ev) => {
+    const c = ev.target.closest('[data-ftblog]');
+    if (!c) return;
+    FT.blog = c.dataset.ftblog;
+    $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === FT.blog));
+    if (cl.dataset.dirty !== '1') cl.value = ftBlog().closing.join('\n');
+    ftRender(); ftSave();
+  });
+  $('#ftAuto').addEventListener('change', (e) => { FT.auto = e.target.checked; ftRender(); ftSave(); });
+  $('#ftSample').onclick = () => { ta.value = ftSample(); ftRender(); ftSave(); };
+  $('#ftClear').onclick = () => { ta.value = ''; ftRender(); ftSave(); };
+  $('#ftCopy').onclick = ftCopy;
+  $('#ftSelect').onclick = () => {
+    try {
+      const r = document.createRange();
+      r.selectNodeContents($('#ftPreview'));
+      const s = window.getSelection();
+      s.removeAllRanges(); if (r.toString().trim()) s.addRange(r);
+      toast('전체 선택했어요 · 꾹 눌러 복사해 주세요');
+    } catch (e) { toast('선택이 막혀 있어요'); }
+  };
+  ftRender();
+}
+
+function ftSave() {
+  if (!FT.bound) return;
+  LS.set('yc.ft', {
+    blog: FT.blog, auto: FT.auto,
+    text: $('#ftInput').value,
+    closing: $('#ftClosing').value,
+    closingDirty: $('#ftClosing').dataset.dirty === '1',
+  });
+}
+
+/* 테스트용 */
+window.__ft = {
+  presets: FT_BLOGS,
+  build: ftBuild,
+  parse: ftParse,
+  blog: (id) => { FT.blog = id; $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === id)); ftRender(); },
+  auto: (v) => { FT.auto = !!v; $('#ftAuto').checked = !!v; ftRender(); },
+};
 
 /* ───────────────────────── 잠금 / 부팅 ───────────────────────── */
 let pinBuf = '';
