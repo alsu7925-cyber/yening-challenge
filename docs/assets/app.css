@@ -625,13 +625,6 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;
   background:var(--pink-soft);color:var(--brown);border-radius:5px;padding:1px 5px;
 }
-.ft-closing-field{margin-top:14px}
-.ft-closing-field textarea{
-  width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);
-  background:var(--cream);font-size:12.5px;line-height:1.6;outline:none;resize:vertical;
-}
-.ft-closing-field textarea:focus{border-color:var(--rose);background:#fff}
-.ft-closing-field label{font-size:11px}
 
 .ft-post-wrap{border:1px solid var(--line);border-radius:16px;background:#F4EDE7;padding:10px;max-height:720px;overflow:auto}
 .ft-post{

@@ -2084,6 +2084,7 @@ function mgSave(type, ext) {
 /* ───────────────────────── ✨ 서식 변환기 ───────────────────────── */
 /* 블로그별 서식 프리셋 — memory/topics/blog-campaign-ops/docs/blog-formats.md 기준
    · 내몸데스크는 문서 확정값(포인트 #1F7A5C · 형광펜 #c2f4db · 소제목 30pt · 강조 19pt · 표 #e5fcf0)을 그대로 쓴다. */
+/* 블로그별 프리셋. closing 문구는 자동 삽입 기능을 쓰지 않기로 해(2026-11-20) 화면에 쓰지 않고 데이터로만 둔다. */
 const FT_BLOGS = [
   {
     id: 'ye_zib', name: '예지브러리', emoji: '📚', handle: 'ye_zib',
@@ -2093,7 +2094,7 @@ const FT_BLOGS = [
     quote: { bg: '#FFF8F6', bar: '#DFA2A5', color: '#6E4B3F' },
     hr: '#EFE2DA', th: '#FBEAEC',
     tone: '담백한 해요체 · 인용구 훅 2줄',
-    rules: ['16pt 본문 · 소프트 크림핑크 형광펜', '번호 없는 굵은 소제목', '💬 예브의 한마디 · 예지브러리였습니다 📚'],
+    rules: ['16pt 본문 · 연핑크 형광펜 #FFD6E0', '번호 없는 굵은 소제목', '인용구 훅 · 굵게·형광펜 강조'],
     closing: ['💬 예브의 한마디', '오늘도 예지브러리에 이야기 하나를 꽂아둡니다. 📚', '먹고, 써보고, 놀고! 예지브러리였습니다 📚'],
   },
   {
@@ -2104,7 +2105,7 @@ const FT_BLOGS = [
     quote: { bg: '#F5F9FE', bar: '#9DBBE6', color: '#24466F' },
     hr: '#DCE6F2', th: '#E8F0FB',
     tone: '담백한 해요체 · 스펙·요약 강조',
-    rules: ['IT·자동차 블루/슬레이트 형광펜', '핵심 스펙·한줄 요약 강조', '📱 픽모아였습니다 🛍️'],
+    rules: ['연노랑 형광펜 #FFF1C2', '핵심 스펙·한줄 요약 강조', 'IT·자동차 스펙 정리 톤'],
     closing: ['📱 픽모아 한줄 정리', '고른 기준과 아쉬운 점까지 담았습니다. 픽모아였습니다 🛍️'],
   },
   {
@@ -2115,19 +2116,19 @@ const FT_BLOGS = [
     quote: { bg: '#F2FBF7', bar: '#A9E0C9', color: '#14544A' },
     hr: '#D8EDE4', th: '#E3F7EE',
     tone: '합쇼체(~습니다) · 수치 강조',
-    rules: ['그린·에메랄드 형광펜으로 숫자 강조', '금액·조건 기준일 문구 자동', '💰 세이브데스크였습니다'],
+    rules: ['연살구 형광펜 #FBE3D4로 숫자 강조', '금액·조건 기준일 문구 자동'],
     autoNote: true,
     closing: ['💰 세이브데스크 정리', '오늘 확인한 숫자만 챙겨 가시면 됩니다. 세이브데스크였습니다.'],
   },
   {
     id: 'worddesk', name: '워드데스크', emoji: '🌏', handle: 'worddesk',
-    badge: '#7B5EA7', accent: '#5B3F86',
-    hl: '#E9E1F7', boldColor: '#4E3B72', boldSize: 0,
+    badge: '#3D6DB5', accent: '#0047FF',
+    hl: '#EBF0FF', boldColor: '#0047FF', boldSize: 0, text: '#2C3A46',
     body: 15, sub: 17, subColor: '#4E3B72', subBar: '#A98FD0', h1: 22,
     quote: { bg: '#F8F5FD', bar: '#C9B8E8', color: '#4E3B72' },
     hr: '#E4DBF2', th: '#F1EAFB',
     tone: '영·중·일 비교 · 한글 독음 병기',
-    rules: ['라벤더/퍼플 형광펜', '3개국어 비교 표', '하단 사전 각주·독음 병기'],
+    rules: ['연하늘 형광펜 #EBF0FF · 강조 #0047FF', '3개국어 비교 표', '하단 사전 각주·독음 병기'],
     closing: ['🌏 워드데스크 정리', '뜻은 같아도 쓰임은 다릅니다. 워드데스크였습니다 🌏'],
   },
   {
@@ -2138,7 +2139,7 @@ const FT_BLOGS = [
     quote: { bg: '#F4FBF7', bar: '#A8E2C6', color: '#1F5A45' },
     hr: '#D9EDE3', th: '#e5fcf0',
     tone: '차분한 해요체 · 2,100~2,500자',
-    rules: ['포인트 #1F7A5C · 형광펜 #c2f4db', '소제목 30pt · 강조 19pt', '소제목당 형광펜 1개 · 강조와 동시 금지'],
+    rules: ['포인트 #1F7A5C · 형광펜 C2F4DB', '소제목 30pt · 강조 19pt', '소제목당 형광펜 1개 · 강조와 동시 금지'],
     target: [2100, 2500],
     closing: ['🌿 내몸데스크 한 줄', '오늘 하루, 몸에 맞는 선택 하나면 충분합니다. 내몸데스크였습니다 🌿'],
   },
@@ -2150,7 +2151,7 @@ const FT_BLOGS = [
     quote: { bg: '#F5F7FC', bar: '#B9C4DA', color: '#1F3864' },
     hr: '#DDE2EE', th: '#FFE9E6',
     tone: '레드/네이비 · 3분 브리핑',
-    rules: ['스포츠 레드/네이비 형광펜', '3분 브리핑 요약 박스', '⚾ 스포브리핑이었습니다'],
+    rules: ['스포츠 레드/네이비 형광펜 #FFE1E1', '3분 브리핑 요약 박스'],
     closing: ['⚾ 3분 브리핑', '핵심만 빠르게 정리했습니다. 스포브리핑이었습니다 ⚾'],
   },
   {
@@ -2161,7 +2162,7 @@ const FT_BLOGS = [
     quote: { bg: '#FFFBF2', bar: '#F0D399', color: '#6B4A2F' },
     hr: '#F0E4D2', th: '#FFF7DC',
     tone: '다정한 해요체 · 신생아 육아 기록',
-    rules: ['15pt 본문 · 연노랑 형광펜', '육아 기록 톤 · 날짜·개월 수 강조', '🍼 찐찡이네였습니다'],
+    rules: ['15pt 본문 · 연노랑 형광펜 #FFF3B0', '육아 기록 톤 · 날짜·개월 수 강조'],
     closing: ['🍼 찐찡이네 한 줄', '쭈니의 하루를 담아둡니다. 찐찡이네였습니다 🍼'],
   },
 ];
@@ -2383,7 +2384,8 @@ function ftInline(s, b) {
 }
 
 function ftBlockHTML(bk, b) {
-  const bodyP = 'font-size:' + b.body + 'pt;line-height:1.9;margin:0 0 16px;color:#3B3330;word-break:keep-all;';
+  const tcol = b.text || '#3B3330';                                  // 블로그별 본문 글자색(기본 #3B3330)
+  const bodyP = 'font-size:' + b.body + 'pt;line-height:1.9;margin:0 0 16px;color:' + tcol + ';word-break:keep-all;';
   if (bk.t === 'h1') return '<p style="font-size:' + b.h1 + 'pt;font-weight:800;line-height:1.45;margin:0 0 20px;color:#2F2622;word-break:keep-all;">' + ftInline(bk.s, b) + '</p>';
   if (bk.t === 'h2') return '<p style="font-size:' + b.sub + 'pt;font-weight:700;line-height:1.5;margin:30px 0 12px;color:' + b.subColor + ';word-break:keep-all;"><span style="border-left:4px solid ' + b.subBar + ';padding-left:10px;">' + ftInline(bk.s, b) + '</span></p>';
   if (bk.t === 'h3') return '<p style="font-size:' + Math.max(14, b.sub - 3) + 'pt;font-weight:700;line-height:1.55;margin:22px 0 10px;color:' + b.subColor + ';">' + ftInline(bk.s, b) + '</p>';
@@ -2393,12 +2395,12 @@ function ftBlockHTML(bk, b) {
   if (bk.t === 'q') return '<div style="background-color:' + b.quote.bg + ';border-left:4px solid ' + b.quote.bar + ';border-radius:8px;padding:16px 18px;margin:0 0 18px;"><p style="font-size:' + Math.max(13, b.body - 1) + 'pt;line-height:1.85;margin:0;color:' + b.quote.color + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p></div>';
   if (bk.t === 'hr') return '<p style="border-top:1px solid ' + b.hr + ';margin:30px 0;font-size:1pt;line-height:1;">&nbsp;</p>';
   if (bk.t === 'ul' || bk.t === 'ol') {
-    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'pt;line-height:1.8;margin:0 0 6px;padding-left:4px;color:#3B3330;">' + (bk.t === 'ul' ? '• ' : (i + 1) + '. ') + ftInline(it, b) + '</p>').join('');
+    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'pt;line-height:1.8;margin:0 0 6px;padding-left:4px;color:' + tcol + ';">' + (bk.t === 'ul' ? '• ' : (i + 1) + '. ') + ftInline(it, b) + '</p>').join('');
   }
   if (bk.t === 'table') {
     const rows = bk.rows.map((cells, ri) => {
       const tag = ri === 0 ? 'th' : 'td';
-      const st = 'border:1px solid ' + b.hr + ';padding:8px 10px;' + (ri === 0 ? 'background-color:' + b.th + ';font-weight:700;color:' + b.subColor + ';' : 'color:#3B3330;');
+      const st = 'border:1px solid ' + b.hr + ';padding:8px 10px;' + (ri === 0 ? 'background-color:' + b.th + ';font-weight:700;color:' + b.subColor + ';' : 'color:' + tcol + ';');
       return '<tr>' + cells.map((c) => '<' + tag + ' style="' + st + '">' + ftInline(c, b) + '</' + tag + '>').join('') + '</tr>';
     }).join('');
     return '<table style="border-collapse:collapse;width:100%;margin:0 0 18px;font-size:' + Math.max(12, b.body - 1) + 'pt;">' + rows + '</table>';
@@ -2421,13 +2423,9 @@ function ftPlain(blocks) {
 function ftBuild() {
   const b = ftBlog();
   let blocks = ftParse($('#ftInput') ? $('#ftInput').value : '');
-  const closeLines = ($('#ftClosing') ? $('#ftClosing').value : '').split('\n').map((s) => s.trim()).filter(Boolean);
-  if (FT.auto) {
-    blocks = ftAuto(blocks, b);
-    if (closeLines.length) closeLines.forEach((s, i) => blocks.push(i === 0 ? { t: 'sub', s } : { t: 'p', s }));
-  }
+  if (FT.auto) blocks = ftAuto(blocks, b);                     // 마무리 끝인사 자동 삽입은 쓰지 않는다(2026-11-20 지시)
   const html = blocks.length
-    ? '<div style="color:#3B3330;word-break:keep-all;">' + blocks.map((bk) => ftBlockHTML(bk, b)).filter(Boolean).join('') + '</div>'
+    ? '<div style="color:' + (b.text || '#3B3330') + ';word-break:keep-all;">' + blocks.map((bk) => ftBlockHTML(bk, b)).filter(Boolean).join('') + '</div>'
     : '';
   return { html, text: ftPlain(blocks), blocks, blog: b };
 }
@@ -2514,21 +2512,16 @@ function ftInit() {
   }
   const ta = $('#ftInput');
   if (saved && typeof saved.text === 'string') ta.value = saved.text;
-  const cl = $('#ftClosing');
-  if (saved && saved.closingDirty && typeof saved.closing === 'string') { cl.value = saved.closing; cl.dataset.dirty = '1'; }
-  else cl.value = ftBlog().closing.join('\n');
   $('#ftAuto').checked = FT.auto;
   $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === FT.blog));
 
   let timer = 0;
   ta.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { ftRender(); ftSave(); }, 200); });
-  cl.addEventListener('input', () => { cl.dataset.dirty = '1'; ftRender(); ftSave(); });
   $('#ftPicks').addEventListener('click', (ev) => {
     const c = ev.target.closest('[data-ftblog]');
     if (!c) return;
     FT.blog = c.dataset.ftblog;
     $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === FT.blog));
-    if (cl.dataset.dirty !== '1') cl.value = ftBlog().closing.join('\n');
     ftRender(); ftSave();
   });
   $('#ftAuto').addEventListener('change', (e) => { FT.auto = e.target.checked; ftRender(); ftSave(); });
@@ -2552,8 +2545,6 @@ function ftSave() {
   LS.set('yc.ft', {
     blog: FT.blog, auto: FT.auto,
     text: $('#ftInput').value,
-    closing: $('#ftClosing').value,
-    closingDirty: $('#ftClosing').dataset.dirty === '1',
   });
 }
 
