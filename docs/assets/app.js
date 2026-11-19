@@ -3422,10 +3422,11 @@ function slFigure(ctx, W, H) {
   if (female) {
     /* 긴 머리 — 정수리에서 어깨 위까지 */
     ctx.beginPath();
-    ctx.ellipse(cx, cy - rh * 0.06, rw * 1.12, rh * 1.06, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy - rh * 0.04, rw * 1.10, rh * 1.04, 0, 0, Math.PI * 2);
     ctx.fill();
-    slRR(ctx, cx - rw * 1.10, cy - rh * 0.10, rw * 0.52, rh * 2.05, rw * 0.26);
-    slRR(ctx, cx + rw * 0.58, cy - rh * 0.10, rw * 0.52, rh * 2.05, rw * 0.26);
+    /* 턱선까지만 떨어지는 단발 (목이 보이게 짧게) */
+    slRR(ctx, cx - rw * 1.10, cy - rh * 0.05, rw * 0.42, rh * 0.72, rw * 0.21);
+    slRR(ctx, cx + rw * 0.68, cy - rh * 0.05, rw * 0.42, rh * 0.72, rw * 0.21);
   } else {
     /* 짧은 머리 — 정수리에 잔머리 결 */
     ctx.beginPath();
@@ -3450,13 +3451,11 @@ function slFigure(ctx, W, H) {
   }
 
   if (player) {
-    /* 모자 챙 */
+    /* 야구 모자 — 둥근 챙 + 앞으로 짧게 나온 챙 */
     ctx.beginPath();
-    ctx.ellipse(cx, cy - rh * 0.60, rw * 1.12, rh * 0.62, 0, Math.PI, Math.PI * 2);
+    ctx.ellipse(cx, cy - rh * 0.46, rw * 1.08, rh * 0.56, 0, Math.PI, Math.PI * 2);
     ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(cx, cy - rh * 0.66, rw * 1.46, rh * 0.17, 0, Math.PI, Math.PI * 2);
-    ctx.fill();
+    slRR(ctx, cx + rw * 0.16, cy - rh * 0.56, rw * 1.16, rh * 0.20, rh * 0.10);
   }
 
   ctx.restore();
