@@ -8,6 +8,9 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':
 /* 🚨 고소·저작권 주의 대상(assets/blocklist.js) — 제목·원고·소재 어디든 같은 규칙으로 검사 */
 const ycScan = (t) => (window.ycBlockScan ? window.ycBlockScan(t) : []);
 const ycLabels = (h) => (window.ycBlockLabels ? window.ycBlockLabels(h) : '');
+/* ⚠️ 소프트 주의(이정후) — 막지 않고 노란 배지만 */
+const ycSoft = (t) => (window.ycSoftScan ? window.ycSoftScan(t) : []);
+const ycSoftBox = (h, o) => (window.ycSoftBanner ? window.ycSoftBanner(h, o) : '');
 const nfmt = (n) => (Number(n) || 0).toLocaleString('ko-KR');
 const won = (n) => '₩' + (Number(n) || 0).toLocaleString('ko-KR');
 const KST_OFF = 9 * 3600 * 1000;
@@ -1076,16 +1079,20 @@ function matBody(tab, date) {
       const key = 'kw:' + date + ':' + r.kw;
       const on = !!APP.state.picks[key];
       const blk = ycScan(r.kw);
+      const soft = ycSoft(r.kw);
       const kwTxt = blk.length
         ? `<span class="kw">${esc(r.kw)}</span>`
         : `<a class="kw" href="https://search.naver.com/search.naver?query=${encodeURIComponent(r.kw)}" target="_blank" rel="noopener">${esc(r.kw)}</a>`;
       const act = (blk.length && !on)
         ? `<span class="blk-tag" title="${esc('사용 금지 — ' + ycLabels(blk))}">🚨 금지</span>`
         : `<button class="tiny-btn" data-pick="${esc(key)}" data-copy="${esc(r.kw)}" style="${on ? 'background:var(--rose);color:#fff' : ''}">${on ? '해제' : '+'}</button>`;
-      return `<li class="${blk.length ? 'blocked' : ''}"><span class="r">${r.rank}</span>
+      const softTag = soft.length
+        ? `<span class="soft-tag" title="${esc(soft.map((x) => x.head || x.label).join(' / '))}">⚠️ 주의</span>`
+        : '';
+      return `<li class="${blk.length ? 'blocked' : ''}${soft.length ? ' soft' : ''}"><span class="r">${r.rank}</span>
             ${kwTxt}
             <span class="vol">${nfmt(r.vol)}</span>${dl}
-            ${act}
+            ${softTag}${act}
           </li>`;
     }).join('')}</ol>
       </div>`).join('');
@@ -1100,6 +1107,7 @@ function matBody(tab, date) {
     const key = esc(tab + ':' + date + ':' + (r.url || r.title));
     const on = !!APP.state.picks[key];
     const blk = ycScan(r.title);
+    const soft = ycSoft(r.title);
     const q = r.url && /^https?:/.test(r.url) ? r.url : 'https://search.naver.com/search.naver?query=' + encodeURIComponent(r.title);
     const meta = [];
     if (r.blog) meta.push(r.blog);
@@ -1109,14 +1117,17 @@ function matBody(tab, date) {
     const blkTag = blk.length
       ? `<span class="blk-tag" title="${esc('사용 금지 — ' + ycLabels(blk))}">🚨 사용 금지</span>`
       : '';
+    const softTag = soft.length
+      ? `<span class="soft-tag" title="${esc(soft.map((x) => x.head || x.label).join(' / '))}">⚠️ 주의</span>`
+      : '';
     const act = (blk.length && !on)
       ? `<button class="go blk-off" disabled title="${esc('🚨 고소·저작권 주의 대상 — ' + ycLabels(blk))}">🚨 금지</button>`
       : `<button class="go ${on ? 'on' : ''}" data-pick="${key}" data-copy="${esc(r.title)}">${blk.length ? '해제' : (on ? '쓸게요 ✓' : '쓸게요')}</button>`;
-    return `<div class="mat-item ${i < 3 ? 'top' : ''}${blk.length ? ' blocked' : ''}">
+    return `<div class="mat-item ${i < 3 ? 'top' : ''}${blk.length ? ' blocked' : ''}${soft.length ? ' soft' : ''}">
         <div class="n">${r.rank || i + 1}</div>
         <div class="body">
           <a class="t" href="${esc(q)}" target="_blank" rel="noopener">${esc(r.title)}</a>
-          <div class="m">${blkTag}${meta.map((x) => `<span>${esc(x)}</span>`).join('')}</div>
+          <div class="m">${blkTag}${softTag}${meta.map((x) => `<span>${esc(x)}</span>`).join('')}</div>
         </div>
         ${act}
       </div>`;
@@ -1162,22 +1173,89 @@ function tsRhyme(s) {
   }
   return '';
 }
+/* 주제 분류 — 입력 제목의 도메인을 보고 훅·코칭·추천을 고른다.
+   스포츠 글에 "신청 안 하면 못 받아요" 같은 지원금 훅이 붙지 않게 하는 핵심 장치.
+   ('박동원'의 '원'처럼 이름 속 글자에 낚이지 않도록 단어 목록을 세어 고른다) */
+const TS_KIND_WORDS = {
+  sports: ['야구', '축구', '농구', '배구', 'KBO', 'K리그', 'MLB', '프로야구', '자이언츠', '타이거즈', '트윈스',
+    '베어스', '랜더스', '히어로즈', '이글스', '다이노스', '위즈', '감독', '선수', '타자', '투수', '타율', '홈런',
+    '타점', '타수', '안타', '득점', '볼넷', '이적', 'FA', '트레이드', '구단', '리그', '시즌', '한국시리즈',
+    '포스트시즌', '올림픽', '월드컵', '연봉', '경기장', '전반', '후반', '선발', '구원', '역전', '엔트리', '감독직'],
+  tech: ['아이폰', '갤럭시', '노트북', '맥북', '태블릿', '스마트폰', '휴대폰', '이어폰', '헤드폰', '워치', '스피커',
+    '가전', '냉장고', '세탁기', '에어컨', '청소기', '모니터', '키보드', '마우스', '챗GPT', 'AI', '앱', '프로그램',
+    '유튜브', '자동차', '신차', '시승', '주행', '연비', '전기차', '하이브리드', '타이어', '세차', '정비', '블랙박스',
+    '카시트', '내비', '충전기', '보조배터리', '렌탈', '배터리'],
+  health: ['다이어트', '감량', '체중', '몸무게', 'kg', '칼로리', '혈당', '혈압', '콜레스테롤', '영양제', '유산균',
+    '오메가', '비타민', '단백질', '근육', '운동', '헬스', '요가', '필라테스', '루틴', '수면', '탈모', '두피', '피부',
+    '여드름', '아토피', '질환', '증상', '병원', '진료', '처방', '검진', '마운자로', '위고비', '갱년기', '임신', '출산',
+    '관절', '허리', '어깨', '면역', '장건강', '열', '체온'],
+  parenting: ['육아', '신생아', '아기', '아들', '딸', '초등', '중등', '고등', '학생', '학부모', '방학', '개학',
+    '입학', '졸업', '학원', '숙제', '문제집', '수능', '내신', '책육아', '태교', '장난감', '놀이터', '어린이집',
+    '유치원', '이유식', '기저귀', '등원', '하원', '교육', '키즈', '아동'],
+  money: ['지원금', '보조금', '장려금', '신청', '마감', '세금', '연말정산', '종합소득세', '부가세', '적금', '예금',
+    '주식', '배당', '청약', '환급', '절약', '금리', '대출', '보험료', '연금', '수당', '급여', '월급', '실수령',
+    '캐시백', '만원', '천원', '가격', '할인', '무료', '공짜', '반값', '포인트'],
+  food: ['맛집', '맛', '메뉴', '파스타', '국수', '고기', '디저트', '카페', '베이커리', '안주', '밥', '면', '빵',
+    '술', '여행', '숙소', '호텔', '펜션', '캠핑', '체험단', '내돈내산', '리뷰', '제품', '화장품', '크림', '세럼',
+    '앰플', '코디', '가방', '신발'],
+  celeb: ['근황', '열애', '결혼', '이혼', '컴백', '화보', '인스타', '배우', '아이돌', '가수', '출연', '예능',
+    '논란', '콘서트', '앨범', '드라마', '영화', '개봉', '시청률', '팬미팅'],
+};
+const TS_KIND_ORDER = ['sports', 'tech', 'health', 'parenting', 'money', 'food', 'celeb'];
 function tsKind(title) {
-  if (/맛집|맛|메뉴|파스타|국수|고기|디저트|카페|베이커리|안주|밥|면|빵|술/.test(title)) return 'food';
-  if (/원|만원|가격|할인|지원금|세금|연말정산|적금|주식|청약|환급|절약/.test(title)) return 'money';
-  if (/다이어트|kg|몸무게|운동|헬스|요가|루틴|감량/.test(title)) return 'fit';
-  if (/근황|열애|결혼|이혼|컴백|화보|인스타|배우|아이돌|가수|출연|예능|논란/.test(title)) return 'celeb';
-  return 'generic';
+  const t = String(title == null ? '' : title);
+  let best = 'generic', bestN = 0;
+  TS_KIND_ORDER.forEach((k) => {
+    const words = TS_KIND_WORDS[k];
+    let n = 0;
+    for (let i = 0; i < words.length; i++) if (t.indexOf(words[i]) >= 0) n++;
+    if (n > bestN) { bestN = n; best = k; }
+  });
+  return best;
 }
+/* 주제별 훅 — 그 분야에 자연스러운 말만 쓴다 */
 const TS_BANK = {
+  sports: ['"연봉·성적 다 따져보니" ', '"이번 시즌 최대 변수?" '],
+  tech: ['"3개월 써보니" ', '"사기 전에 알아야 할" '],
+  health: ['"병원에서 들은 기준" ', '"숫자로 보면 이래요" '],
+  parenting: ['"학부모들 다 이 말 해요" ', '"초등 기준으로 보면" '],
+  money: ['"신청 안 하면 못 받아요" ', '"이거 모르면 그냥 손해" '],
   food: ['"여기 왜 줄 서는지 알겠다" ', '"먹자마자 말 잃은" '],
-  money: ['"이거 모르면 그냥 손해" ', '"신청 안 하면 못 받아요" '],
-  fit: ['"이거 하나로 달라졌어요" ', '"한 달 만에 몸이 바뀐" '],
   celeb: ['"이걸 직접 공개한다고?" ', '"그동안 숨긴 진짜 이유" '],
   generic: ['"이건 실화야?" ', '"아직도 모르는" '],
 };
+/* 주제별 코칭 예시 — 스포츠 글에 "2,000원" 같은 엉뚱한 예를 들지 않게 */
+const TS_COACH = {
+  sports: { hook: '①따옴표("연봉·성적 다 따져보니") ②숫자("3년 계약") ③비교("vs 구도")', con: '타율·홈런·연봉·계약 기간', kw: '이적·연봉·전력' },
+  tech: { hook: '①따옴표("3개월 써보니") ②숫자("12만 원대") ③비교("전 세대와")', con: '가격·배터리·무게', kw: '후기·가격·비교' },
+  health: { hook: '①따옴표("병원에서 들은 기준") ②숫자("3개월") ③기준("정상 범위")', con: '수치·mg·도·주', kw: '증상·기준·병원' },
+  parenting: { hook: '①따옴표("학부모들 다 이 말 해요") ②나이("7살") ③시기("방학")', con: '개월·살·학년', kw: '방학·학원·초등' },
+  money: { hook: '①따옴표("신청 안 하면 못 받아요") ②숫자("10만 원") ③기한("마감 전")', con: '금액·기간·%', kw: '지원금·신청·마감' },
+  food: { hook: '①따옴표("여기 왜 줄 서는지 알겠다") ②숫자("2,000원") ③비교("다른 지점과")', con: '곳·원·분', kw: '맛집·후기·가격' },
+  celeb: { hook: '①따옴표("이걸 직접 공개한다고?") ②숫자("3년 만에") ③반전', con: '년·회·편', kw: '근황·논란·화보' },
+  generic: { hook: '①따옴표 대화체 ②숫자 ③반전·손실 한마디', con: '숫자+단위', kw: '후기·방법·정리' },
+};
 
-function scoreHomeTitle(raw) {
+/* ② 숫자·비교 구체화형에 붙일 숫자 문구 — ○ 자리에 실제 확인한 숫자를 채우게 한다(지어내지 않기) */
+const TS_NUM = {
+  sports: ['"vs 구도로 보면" ', '"기록으로 비교하면" '],
+  tech: ['"○만 원대" ', '"○개월 써보니" '],
+  health: ['"○도·○mg 기준" ', '"○주 만에" '],
+  parenting: ['"○살 기준" ', '"○개월 차" '],
+  money: ['"○만 원 차이" ', '"○개월이면" '],
+  food: ['"○,○○○원 더 내고 먹는" ', '"○곳 다 먹어봤더니" '],
+  celeb: ['"○년 만에" ', '"○년 전과 비교" '],
+  generic: ['"○가지" ', '"○년 만에" '],
+};
+function tsTrim(s, max) {
+  const t = tsNorm(s);
+  if (tsChars(t).length <= max) return t;
+  const ws = t.split(' ');
+  while (ws.length > 3 && tsChars(ws.join(' ')).length > max) ws.pop();
+  return tsNorm(ws.join(' '));
+}
+
+function scoreHomeTitle(raw, forceKind) {
   const title = tsNorm(raw);
   const chars = tsChars(title);
   const len = chars.length;
@@ -1185,6 +1263,9 @@ function scoreHomeTitle(raw) {
   /* 주의 대상이 들어 있으면 채점 자체를 막는다 */
   const blocked = ycScan(title);
   if (blocked.length) return { ok: false, blocked, title };
+  const soft = ycSoft(title);
+  /* 주제(자동 판단 또는 칩에서 고른 것) — 훅·코칭·추천이 이걸 따른다 */
+  const kind = (forceKind && forceKind !== 'auto') ? forceKind : tsKind(title);
   const front = chars.slice(0, 13).join('');
   const head = chars.slice(0, 18).join('');
   const good = [];
@@ -1285,37 +1366,91 @@ function scoreHomeTitle(raw) {
   const summary = gradeMsg + (wr >= 0.82 ? ''
     : (total >= 80 ? ' 굳이 더 얹자면 ' : ' 가장 아쉬운 곳은 ') + weakest.label + '(' + weakest.score + '/' + weakest.max + ')이에요.');
 
-  /* ── 개선 제안 ── */
-  const kind = tsKind(title);
-  const bank = TS_BANK[kind] || TS_BANK.generic;
-  const suggestions = [];
-  if ((frontPlain || frontSearch.length) && names.length && len >= 14) {
-    let base = title;
-    if (frontSearch.length) {
-      const keep = frontSearch[0];
-      const core = toks.filter((t) => TS_DICT.SEARCH.indexOf(t) < 0 && !/\d/.test(t));
-      base = ((core.length ? core : toks).join(' ') + ' ' + keep).trim();
-    }
-    bank.forEach((p) => {
-      let cand = tsNorm(p + base);
-      if (tsChars(cand).length > 46) {
-        const ws = cand.split(' ');
-        while (ws.length > 4 && tsChars(ws.join(' ')).length > 46) ws.pop();
-        cand = ws.join(' ');
-      }
-      suggestions.push(cand);
+  /* ── 💡 아쉬운 점 · 이렇게 보완해 보세요 (항상 3줄 이상) ── */
+  const frontTxt = front.trim();
+  const coach = [];
+  const pr = { hook: hook / 40, con: con / 25, st: st / 20, ln: ln / 15 };
+
+  if (pr.hook < 0.85) {
+    coach.push({
+      key: 'hook', label: '앞부분 후킹 ' + hook + '/40',
+      msg: '홈판 카드는 앞 12~14자만 크게 보입니다. 지금 시작 "' + frontTxt + '"은(는) 얌전해서 스쳐 지나가요. ' + (TS_COACH[kind] || TS_COACH.generic).hook + ' 중 하나를 붙이는 게 가장 빠릅니다.',
     });
-    tips.push('앞부분에 붙일 후킹 문구예요. 아래 제안을 눌러 복사한 뒤 뒤쪽 검색 키워드는 그대로 두면 홈판·검색 둘 다 잡혀요.');
+  } else if (pr.hook < 1) {
+    coach.push({
+      key: 'hook', label: '앞부분 후킹 ' + hook + '/40',
+      msg: '시작은 좋아요. 앞 12~14자 뒤에 물음표·ㅋㅋ 같은 말투나 "그런데" 같은 반전 말 한마디를 붙이면 40점이 됩니다.',
+    });
   }
-  if (abs.length && !hasNum) tips.push('"' + abs[0] + '" 대신 "○○원", "○개월", "○번"처럼 숫자를 넣어 주면 같은 말도 훨씬 구체적으로 읽혀요.');
-  if (frontSearch.length && !frontHooky) tips.push('검색형 제목은 검색 유입엔 강해요. 홈판까지 노릴 때만 앞에 후킹 한마디를 얹는 걸 추천해요.');
-  if ((frontPlain || frontSearch.length) && !names.length) tips.push('무엇에 대한 글인지(제품·메뉴·지역·인물) 하나를 제목에 먼저 넣어 주세요. 예: "파스타", "연말정산", "카더가든".');
+  if (pr.con < 0.8) {
+    coach.push({
+      key: 'con', label: '구체성 ' + con + '/25',
+      msg: '무엇이 그런지 보여 줄 숫자·대상이 부족해요. 앞쪽 13자 안이나 바로 뒤에 ' + (TS_COACH[kind] || TS_COACH.generic).con + ' 같은 숫자와 고유명사(지역·인물·제품·구단)를 하나씩 넣어 보세요.' + (abs.length && !hasNum ? ' "' + abs[0] + '" 같은 말만으로는 모호하게 읽힙니다.' : ''),
+    });
+  } else if (pr.con < 1) {
+    coach.push({
+      key: 'con', label: '구체성 ' + con + '/25',
+      msg: '구체성은 거의 다 왔어요. 숫자 뒤에 단위(원·개월·곳)만 딱 붙이면 만점입니다.',
+    });
+  }
+  if (pr.st < 0.8) {
+    coach.push({
+      key: 'st', label: '검색형·구조 ' + st + '/20',
+      msg: '앞부분이 검색형 키워드로 시작하면 홈판에서 스쳐요. 구조를 "앞=후킹 / 뒤=검색 키워드"로 바꾸세요 — ' + (TS_COACH[kind] || TS_COACH.generic).kw + ' 같은 말은 뒷부분으로 보내고, 맨 앞은 후킹 문구로 채우면 둘 다 잡힙니다.' + (searchCount >= 3 ? ' 검색어가 ' + searchCount + '개 붙어 나열처럼 보이니 1~2개만 남기세요.' : ''),
+    });
+  } else if (pr.st < 1) {
+    coach.push({
+      key: 'st', label: '검색형·구조 ' + st + '/20',
+      msg: '구조는 좋아요. 뒤쪽 검색 키워드를 1~2개만 남기면 더 또렷해집니다.',
+    });
+  }
+  if (len < 22) {
+    coach.push({ key: 'ln', label: '길이·가독성 ' + ln + '/15',
+      msg: '지금 ' + len + '자 — 22~44자에 맛추려면 ' + (22 - len) + '자만 더 붙이면 됩니다. 뒤에 지역명이나 검색 키워드(맛집·후기·방법)를 붙이면 자연스럽게 채워집니다.' });
+  } else if (len > 44) {
+    coach.push({ key: 'ln', label: '길이·가독성 ' + ln + '/15',
+      msg: '지금 ' + len + '자 — 모바일 홈판 카드에서 ' + (len - 44) + '자가 잘립니다. 뒤쪽 수식어·중복 키워드부터 덜어 내세요. 앞 12~14자는 절대 건드리지 마세요.' });
+  } else if (ln < 15) {
+    coach.push({ key: 'ln', label: '길이·가독성 ' + ln + '/15',
+      msg: '길이는 ' + len + '자로 딱 좋아요. 이 구간(22~44자)을 유지하면 15점 만점입니다.' });
+  }
+  if (!coach.length) {
+    coach.push({ key: 'all', label: '지금은 크게 아쉬운 곳이 없어요',
+      msg: '네 가지(앞부분 후킹·구체성·검색 구조·길이) 모두 기준을 넘었어요. 굳이 더 손보려면 사진 첫 장을 앞 13자 후킹과 맞추고, 뒤쪽 키워드를 1개만 남겨 보세요.' });
+  }
+  coach.sort((a, b) => (pr[a.key] == null ? 2 : pr[a.key]) - (pr[b.key] == null ? 2 : pr[b.key]));
+
+  /* ── ✨ 보완한 추천 제목 3개 (2026-11-20 추가) ── */
+  const bank = TS_BANK[kind] || TS_BANK.generic;
+  const numBank = TS_NUM[kind] || TS_NUM.generic;  let base = title;
+  if (frontSearch.length) {
+    const keep = frontSearch[0];
+    const core = toks.filter((t) => TS_DICT.SEARCH.indexOf(t) < 0 && !/^\d/.test(t));
+    base = ((core.length ? core : toks).join(' ') + ' ' + keep).trim();
+  }
+  const kwTail = allSearch[0] || (tailNames.length ? tailNames[tailNames.length - 1] : '');
+  const suggestions = [];
+  const addSug = (type, text) => {
+    const t = tsTrim(text, 44);
+    if (!t || t === title) return;
+    if (suggestions.some((s) => s.text === t)) return;
+    if (suggestions.length < 3) suggestions.push({ type, text: t });
+  };
+  addSug('① 후킹 강화형', bank[0] + base);
+  addSug('② 숫자·비교 구체화형', (hasNum ? numBank[1] : numBank[0]) + base);
+  addSug('③ 검색 키워드 + 호기심 균형형', bank[1] + base + (kwTail && base.indexOf(kwTail) < 0 ? ' ' + kwTail : ''));
+  if (suggestions.length) {
+    tips.push('추천 제목은 앞부분만 바꾼 같은 글입니다. 📋 복사로 바로 쓰거나 🎯 이 제목 채점으로 점수를 확인해 보세요.');
+    if (suggestions.some((s) => s.text.indexOf('○') >= 0)) {
+      tips.push('②의 ○ 자리에는 직접 확인한 숫자(가격·개월·횟수)를 넣어 주세요. 없는 숫자를 지어내면 안 됩니다.');
+    }
+  }
   if (!suggestions.length && total >= 80) tips.push('지금 제목 그대로 발행해도 좋아요. 사진 첫 장만 앞부분 후킹과 맞춰 두면 클릭률이 더 올라가요.');
 
   return {
     ok: true, title, len, front, total, grade, gradeMsg, summary,
-    parts, good: good.slice(0, 4), fix: fix.slice(0, 4), tips, suggestions,
-    weakest: weakest.key,
+    parts, good: good.slice(0, 4), fix: fix.slice(0, 4), tips, suggestions, coach,
+    weakest: weakest.key, soft, kind,
   };
 }
 /* ==== SCORER-CORE END ==== */
@@ -1325,7 +1460,41 @@ const SC_EG = [
   '"96kg에서 9개월 만에 뼈말라 되기까지" 마운자로 맞았다던 카더가든 근황',
   '안양 범계 파스타 맛집 추천 후기',
 ];
+/* 주제 칩 — 누르면 그 분야 기준으로 훅·코칭·추천을 다시 만든다 */
+const SC_KINDS = [
+  ['auto', '자동', '제목을 보고 알아서 판단'],
+  ['money', '💰 경제·지원', '지원금·세금·주식·청약'],
+  ['sports', '⚾ 스포츠', '야구·축구·경기·이적'],
+  ['health', '💪 건강·다이어트', '증상·수치·병원'],
+  ['parenting', '🧸 육아·교육', '초등·방학·학원'],
+  ['tech', '💻 IT·자동차', '제품·신차·앱'],
+  ['food', '🍽️ 맛집·후기', '맛집·여행·체험단'],
+];
 let SC_NODE = null;
+let SC_KIND = LS.get('yc.sckind', 'auto') || 'auto';
+if (!SC_KINDS.some((k) => k[0] === SC_KIND)) SC_KIND = 'auto';
+
+function scKindPaint() {
+  if (!SC_NODE) return;
+  $$('#scKindChips [data-kind]', SC_NODE).forEach((b) => b.classList.toggle('on', b.dataset.kind === SC_KIND));
+}
+
+function setScorerKind(kind) {
+  if (!SC_KINDS.some((k) => k[0] === kind)) return;
+  SC_KIND = kind;
+  LS.set('yc.sckind', kind);
+  scKindPaint();
+  if (SC_NODE && SC_NODE.querySelector('.sc-input').value.trim()) runScorer();
+  else toast(kind === 'auto' ? '주제를 자동으로 판단할게요' : '주제를 ' + scKindName(kind) + '(으)로 바꿨어요');
+}
+
+const SC_KIND_LABEL = { auto: '자동', money: '💰 경제·지원', sports: '⚾ 스포츠', health: '💪 건강·다이어트',
+  parenting: '🧸 육아·교육', tech: '💻 IT·자동차', food: '🍽️ 맛집·후기', celeb: '🎬 연예', generic: '✨ 일반' };
+
+function scKindName(k) {
+  const row = SC_KINDS.filter((x) => x[0] === k)[0];
+  return row ? row[1].replace(/^[^\w가-힣]+\s*/, '') : k;
+}
 
 function scorerNode() {
   if (SC_NODE) return SC_NODE;
@@ -1334,9 +1503,12 @@ function scorerNode() {
   box.innerHTML = `
     <div class="sc-head"><span>🎯 홈판 제목 점수기</span><span class="pill dust">앞 12~14자 기준</span></div>
     <div class="sc-sub">정하신 제목을 넣으면 홈판 카드에서 몇 점인지, 어디가 약한지 바로 짚어 드려요. (100점 만점 · 바로 계산)</div>
+    <div class="sc-kinds" id="scKindChips">${SC_KINDS.map(([k, label, hint]) =>
+      `<button class="sc-kind${SC_KIND === k ? ' on' : ''}" data-sc="kind" data-kind="${k}" title="${esc(hint)}">${esc(label)}</button>`).join('')}</div>
     <div class="sc-row">
       <input class="sc-input" type="text" maxlength="120" placeholder="제목을 붙여넣거나 입력" autocomplete="off" enterkeyhint="go">
       <button class="btn sc-go" data-sc="go">채점</button>
+      <button class="btn ghost sc-reset" data-sc="reset" title="입력·결과 지우고 새로 쓰기">리셋</button>
     </div>
     <div class="sc-egs"><span class="lbl">예시</span>
       ${SC_EG.map((t, i) => `<button class="sc-chip" data-sc="eg" data-i="${i}">${esc(t)}</button>`).join('')}
@@ -1362,11 +1534,11 @@ function runScorer(rawTitle) {
   const inp = node.querySelector('.sc-input');
   const box = node.querySelector('.sc-res');
   if (rawTitle != null) inp.value = rawTitle;
-  const r = scoreHomeTitle(inp.value);
+  const r = scoreHomeTitle(inp.value, SC_KIND);
   if (!r.ok && r.blocked && r.blocked.length) {
     box.innerHTML = window.ycBlockBanner(r.blocked, {
       note: '이 제목은 점수를 채점하지 않았어요. 대상 이름을 빼고 다시 써 주세요.',
-    });
+    }) + '<button class="btn soft sm blk-alt" data-go="silhouette">🎨 사진 대신 안전한 실루엣 썸네일 만들기</button>';
     return;
   }
   if (!r.ok) {
@@ -1381,6 +1553,7 @@ function runScorer(rawTitle) {
       <div class="t"><i style="width:${Math.max(3, Math.round((p.score / p.max) * 100))}%"></i></div>
     </div>`).join('');
   box.innerHTML = `
+    ${r.soft && r.soft.length ? ycSoftBox(r.soft) : ''}
     <div class="sc-top">
       <div class="sc-num">${r.total}<small>점</small></div>
       <div class="sc-badge g${r.grade}">${r.grade} 등급</div>
@@ -1393,12 +1566,30 @@ function runScorer(rawTitle) {
     </div>
     <div class="sc-bars">${barRows}</div>
     ${r.good.length ? `<div class="sc-list good"><h4>👍 잘한 점</h4><ul>${r.good.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
-    ${r.fix.length ? `<div class="sc-list fix"><h4>🔧 보완할 점</h4><ul>${r.fix.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
-    ${r.tips.length ? `<div class="sc-tips">${r.tips.map((t) => '💡 ' + esc(t)).join('<br>')}</div>` : ''}
-    ${r.suggestions.length ? `<div class="sc-sug"><div class="h">📋 이렇게 바꿔 보기 (누르면 복사)</div>
-      ${r.suggestions.map((s) => `<button data-sc="copy" data-copy="${esc(s)}"><span class="cp">복사</span><span>${esc(s)}</span></button>`).join('')}
+    ${(r.coach || []).length ? `<div class="sc-list fix sc-coach"><h4>💡 아쉬운 점 · 이렇게 보완해 보세요</h4><ul>${r.coach.map((c) => `<li><b>${esc(c.label)}</b> — ${esc(c.msg)}</li>`).join('')}</ul></div>` : ''}
+    ${(r.suggestions || []).length ? `<div class="sc-sug">
+      <div class="h">✨ 보완한 추천 제목 ${r.suggestions.length}개 <span class="kindlbl">${esc(SC_KIND_LABEL[r.kind] || r.kind)} 기준${SC_KIND === 'auto' ? ' · 자동' : ''}</span></div>
+      ${r.suggestions.map((s) => `<div class="sug-item">
+        <div class="sug-tp">${esc(s.type)}</div>
+        <div class="sug-tt">${esc(s.text)}</div>
+        <div class="sug-btns">
+          <button data-sc="copy" data-copy="${esc(s.text)}">📋 복사</button>
+          <button data-sc="try" data-title="${esc(s.text)}">🎯 이 제목 채점</button>
+        </div>
+      </div>`).join('')}
     </div>` : ''}
+    ${r.tips.length ? `<div class="sc-tips">${r.tips.map((t) => '💡 ' + esc(t)).join('<br>')}</div>` : ''}
   `;
+}
+
+function resetScorer() {
+  const node = scorerNode();
+  const inp = node.querySelector('.sc-input');
+  const box = node.querySelector('.sc-res');
+  inp.value = '';
+  box.innerHTML = `<div class="sc-empty">아직 채점 전이에요. 제목을 넣고 <b>채점</b>을 누르면 점수·등급·보완 포인트가 여기 나와요.</div>`;
+  inp.focus();
+  toast('지웠어요 · 새 제목을 넣어 주세요');
 }
 
 function renderScorer() {
@@ -1826,6 +2017,7 @@ function renderAll() {
   if (tab === 'scorer') renderScorer();
   if (tab === 'formatter') ftRender();
   if (tab === 'merge') { /* 정적 */ }
+  if (tab === 'silhouette') renderSilhouette();
   $('#nav').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
 }
 
@@ -1884,6 +2076,9 @@ function bindEvents() {
     if (scBtn) {
       const act = scBtn.dataset.sc;
       if (act === 'go') { runScorer(); return; }
+      if (act === 'reset') { resetScorer(); return; }
+      if (act === 'kind') { setScorerKind(scBtn.dataset.kind); return; }
+      if (act === 'try') { runScorer(scBtn.dataset.title || ''); return; }
       if (act === 'eg') { runScorer(SC_EG[Number(scBtn.dataset.i)] || ''); return; }
       if (act === 'copy') { copyText(scBtn.dataset.copy).then((ok) => toast(ok ? '제목을 복사했어요' : '복사가 막혀 있어요 · 길게 눌러 복사해 주세요')); return; }
       return;
@@ -2696,29 +2891,30 @@ function ftBuild() {
 }
 
 /* 🚨 고소·저작권 주의 대상 검사 — 원고 본문 + 첫인사 + 마무리 끝인사 전부 */
-function ftBlockHits() {
+function ftBlockScan() {
   const parts = [];
   ['#ftInput', '#ftGreet', '#ftClose'].forEach((sel) => {
     const el = $(sel);
     if (el && el.value) parts.push(el.value);
   });
-  return ycScan(parts.join('\n'));
+  const all = parts.join('\n');
+  return { hits: ycScan(all), soft: ycSoft(all) };
 }
 
-function ftBlockPaint(hits) {
+function ftBlockHits() { return ftBlockScan().hits; }
+
+function ftBlockPaint(sc) {
   const box = $('#ftBlockWarn');
   if (!box) return;
-  if (hits.length) {
-    box.innerHTML = window.ycBlockBanner(hits, {
-      note: '이대로 복사하면 원고에 그대로 들어갑니다. 대상 이름·문장을 빼고 다시 써 주세요. (복사 버튼을 누르면 한 번 더 확인합니다)',
-    });
-    box.classList.remove('hidden');
-  } else {
-    box.innerHTML = '';
-    box.classList.add('hidden');
-  }
+  sc = sc || ftBlockScan();
+  const html = (sc.hits.length ? window.ycBlockBanner(sc.hits, {
+    note: '이대로 복사하면 원고에 그대로 들어갑니다. 대상 이름·문장을 빼고 다시 써 주세요. (복사 버튼을 누르면 한 번 더 확인합니다)',
+  }) : '') + (sc.soft.length ? ycSoftBox(sc.soft) : '') +
+    (sc.hits.length ? '<button class="btn soft sm blk-alt" data-go="silhouette">🎨 사진 대신 안전한 실루엣 썸네일 만들기</button>' : '');
+  box.innerHTML = html;
+  box.classList.toggle('hidden', !html);
   const cp = $('#ftCopy');
-  if (cp) cp.classList.toggle('warn', hits.length > 0);
+  if (cp) cp.classList.toggle('warn', sc.hits.length > 0);
 }
 
 function ftRender() {
@@ -2726,7 +2922,7 @@ function ftRender() {
   const b = ftBlog();
   const src = $('#ftInput').value;
   const out = ftBuild();
-  ftBlockPaint(ftBlockHits());
+  ftBlockPaint(ftBlockScan());
   const prev = $('#ftPreview');
   if (!src.trim()) {
     prev.innerHTML = '<div class="ft-empty">원고를 붙여넣으면 여기에 <b>' + esc(b.name) + '</b> 서식으로 바로 보여요.<br>샘플 버튼으로 한 번 확인해 보세요.</div>';
@@ -2881,6 +3077,7 @@ window.__yc = {
   renderMaterials: renderMaterials,
   state: () => APP.state,
   ui: () => APP.ui,
+  ftBlockScan: ftBlockScan,
   ftBlockHits: ftBlockHits,
 };
 window.__ft = {
@@ -2995,3 +3192,354 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   boot();
 });
+
+/* ═════════════ 🎨 실루엣 썸네일 (2026-11-20 추가) ═════════════
+   외부 API·사진 없이 브라우저 Canvas로만 그린다.
+   붉으스름한 배경 + 인물 실루엣 + 큰 물음표 → 사진을 못 쓰는 글(고소·저작권 주의)의 대표 썸네일용. */
+const SL = {
+  kind: LS.get('yc.sl.kind', 'male'),
+  bg: LS.get('yc.sl.bg', 'red'),
+  glyph: LS.get('yc.sl.glyph', '?'),
+  ratio: LS.get('yc.sl.ratio', '1:1'),
+  caption: LS.get('yc.sl.caption', ''),
+  mode: 'silhouette',      // 'silhouette' | 'photo'(내 사진 블러)
+  img: null,
+  imgName: '',
+  bound: false,
+};
+
+const SL_BG = {
+  red: { name: '붉은빛', from: '#8E1B26', to: '#2A0609', glow: 'rgba(226,90,96,.55)' },
+  navy: { name: '네이비', from: '#1B3358', to: '#050A14', glow: 'rgba(96,150,226,.45)' },
+  brown: { name: '다크브라운', from: '#4A2A1C', to: '#140A06', glow: 'rgba(206,150,96,.42)' },
+  purple: { name: '딥퍼플', from: '#3B2358', to: '#0D0716', glow: 'rgba(168,120,236,.45)' },
+};
+const SL_KIND = { male: '남자', female: '여자', player: '선수' };
+const SL_GLYPH = { '?': '?', '!': '!', 'VS': 'VS', none: '없음' };
+
+function slSize() { return SL.ratio === '16:9' ? [1600, 900] : [1000, 1000]; }
+
+/* 둥근 사각형 경로 (구형 브라우저에도 안전하게 직접 그림) */
+function slRR(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+  ctx.lineTo(x + rr, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* 머리·어깨 실루엣 (남자·선수: 목이 드러난 상반신 / 여자: 어깨 위로 짧게 떨어지는 머리) */
+function slFigure(ctx, W, H) {
+  const cx = W / 2;
+  const rh = H * 0.112;
+  const rw = rh * 0.93;
+  const cy = H * 0.345;
+  const bottom = H * 1.02;
+  const female = SL.kind === 'female';
+  const player = SL.kind === 'player';
+
+  ctx.save();
+  ctx.fillStyle = '#0B0708';
+
+  const shoulder = W * (player ? 0.345 : female ? 0.285 : 0.305);
+  const neckW = rw * (female ? 0.46 : 0.56);
+
+  /* 몸통 + 어깨 */
+  ctx.beginPath();
+  ctx.moveTo(cx - shoulder, bottom);
+  ctx.bezierCurveTo(cx - shoulder * 0.95, cy + rh * 2.1, cx - rw * 1.85, cy + rh * 1.85, cx - neckW, cy + rh * 1.02);
+  ctx.quadraticCurveTo(cx, cy + rh * 0.76, cx + neckW, cy + rh * 1.02);
+  ctx.bezierCurveTo(cx + rw * 1.85, cy + rh * 1.85, cx + shoulder * 0.95, cy + rh * 2.1, cx + shoulder, bottom);
+  ctx.closePath();
+  ctx.fill();
+
+  /* 목 */
+  ctx.beginPath();
+  ctx.rect(cx - neckW, cy + rh * 0.62, neckW * 2, rh * 0.62);
+  ctx.fill();
+
+  /* 머리 */
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (female) {
+    /* 머리카락 — 머리 둘레를 덮는 타원 + 어깨 위 짧은 컷 */
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - rh * 0.07, rw * 1.14, rh * 1.07, 0, 0, Math.PI * 2);
+    ctx.fill();
+    slRR(ctx, cx - rw * 1.14, cy - rh * 0.18, rw * 0.62, rh * 1.46, rw * 0.31);
+    slRR(ctx, cx + rw * 0.52, cy - rh * 0.18, rw * 0.62, rh * 1.46, rw * 0.31);
+  }
+
+  /* 선수 — 모자 챙 */
+  if (player) {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - rh * 0.72, rw * 1.16, rh * 0.40, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - rh * 0.30, rw * 1.5, rh * 0.16, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+  return { cx, cy, rh, rw };
+}
+
+/* 사진 블러(선택) — 캔버스만으로. filter 미지원 브라우저도 되도록 축소→확대 방식 */
+function slBlurPhoto(ctx, im, W, H) {
+  const k = Math.max(3, Math.round(W / 55));            // 클수록 더 흐림
+  const small = document.createElement('canvas');
+  small.width = Math.max(2, Math.round(W / k));
+  small.height = Math.max(2, Math.round(H / k));
+  const sc = small.getContext('2d');
+  const s = Math.max(small.width / im.width, small.height / im.height);
+  const dw = im.width * s, dh = im.height * s;
+  sc.drawImage(im, (small.width - dw) / 2, (small.height - dh) / 2, dw, dh);
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  try { ctx.filter = 'blur(' + Math.round(W * 0.012) + 'px)'; } catch (e) { /* 무시 */ }
+  ctx.drawImage(small, 0, 0, W, H);
+  ctx.filter = 'none';
+  ctx.restore();
+}
+
+function slDrawPhoto(ctx, W, H) {
+  slBlurPhoto(ctx, SL.img, W, H);
+  /* 붉으스름한 틴트 */
+  const g2 = ctx.createLinearGradient(0, 0, W, H);
+  g2.addColorStop(0, 'rgba(122,18,28,.60)');
+  g2.addColorStop(1, 'rgba(18,4,8,.78)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, 0, W, H);
+  /* 위아래 비네트 */
+  const vg = ctx.createLinearGradient(0, H * 0.55, 0, H);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,.5)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+  return { cx: W / 2, cy: H * 0.44, rh: H * 0.11, rw: H * 0.10 };
+}
+
+function slDraw() {
+  const cv = $('#slCanvas');
+  if (!cv) return;
+  const [W, H] = slSize();
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  const bg = SL_BG[SL.bg] || SL_BG.red;
+  let p;
+
+  if (SL.mode === 'photo' && SL.img) {
+    p = slDrawPhoto(ctx, W, H);
+  } else {
+    /* 배경 그라데이션 */
+    const g = ctx.createLinearGradient(0, 0, W * 0.75, H);
+    g.addColorStop(0, bg.from);
+    g.addColorStop(1, bg.to);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    /* 인물 뒤 은은한 빛 */
+    const glow = ctx.createRadialGradient(W / 2, H * 0.36, W * 0.03, W / 2, H * 0.36, W * 0.46);
+    glow.addColorStop(0, bg.glow);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    /* 위아래 비네트 */
+    const vg = ctx.createLinearGradient(0, H * 0.6, 0, H);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,.45)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
+    p = slFigure(ctx, W, H);
+  }
+
+  /* 큰 물음표·느낌표 — 사진 모드에선 가운데 */
+  if (SL.glyph !== 'none') {
+    const txt = SL.glyph;
+    const fs = txt === 'VS' ? W * 0.13 : W * 0.26;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 ' + Math.round(fs) + 'px "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif';
+    ctx.shadowColor = 'rgba(0,0,0,.55)';
+    ctx.shadowBlur = W * 0.03;
+    ctx.fillStyle = '#FFF6F2';
+    ctx.globalAlpha = 0.96;
+    const gy = SL.mode === 'photo' ? p.cy : p.cy + p.rh * 0.12;
+    ctx.fillText(txt, p.cx, gy);
+    ctx.restore();
+  }
+
+  /* 하단 문구 */
+  if (SL.caption && SL.caption.trim()) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const fs = W * 0.045;
+    ctx.font = '800 ' + Math.round(fs) + 'px "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif';
+    ctx.shadowColor = 'rgba(0,0,0,.6)';
+    ctx.shadowBlur = W * 0.012;
+    ctx.fillStyle = 'rgba(255,248,244,.96)';
+    ctx.fillText(SL.caption.trim().slice(0, 34), W / 2, H - fs * 0.85);
+    ctx.restore();
+  }
+  const meta = $('#slMeta');
+  if (meta) {
+    meta.textContent = W + ' × ' + H + ' · ' +
+      (SL.mode === 'photo' && SL.img ? '내 사진 블러 모드' : (SL_BG[SL.bg] || SL_BG.red).name + ' · ' + SL_KIND[SL.kind] + ' 실루엣');
+  }
+  slPhotoPaint();
+}
+
+function slPhotoPaint() {
+  const on = SL.mode === 'photo' && !!SL.img;
+  const back = $('#slBack');
+  const pick = $('#slPick');
+  const nm = $('#slPhName');
+  if (back) back.classList.toggle('hidden', !on);
+  if (pick) pick.classList.toggle('on', on);
+  if (nm) nm.textContent = on && SL.imgName ? SL.imgName.slice(0, 24) : '';
+}
+
+function slLoadPhoto(file) {
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const im = new Image();
+  im.onload = () => {
+    SL.img = im; SL.imgName = file.name || 'photo'; SL.mode = 'photo';
+    slDraw();
+    toast('사진에 블러 + 물음표를 얹었어요 · 직접 찍은 사진만 쓰세요');
+  };
+  im.onerror = () => toast('사진을 읽지 못했어요 · 다른 파일로 해보세요');
+  im.src = url;
+}
+
+function renderSilhouette() {
+  if (!SL.bound) {
+    $('#view-silhouette').innerHTML = `
+      <div class="sec">
+        <div class="hero" style="padding:18px 20px">
+          <div class="hero-top">
+            <div class="avatar">🎨</div>
+            <div><h2>실루엣 썸네일</h2>
+              <div class="hero-sub">사진을 못 쓰는 글(고소·저작권 주의)에 쓰는 대표 이미지 · 배경 + 인물 실루엣 + 큰 물음표 · 100% 브라우저에서 그림</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec card card-pad">
+        <div class="sl-grid">
+          <div class="sl-controls">
+            <div class="sl-row"><span class="sl-lb">인물</span>
+              <div class="sl-chips" data-slgroup="kind">
+                ${Object.keys(SL_KIND).map((k) => `<button class="sl-chip${SL.kind === k ? ' on' : ''}" data-sl="kind" data-v="${k}">${SL_KIND[k]}</button>`).join('')}
+              </div>
+            </div>
+            <div class="sl-row"><span class="sl-lb">배경</span>
+              <div class="sl-chips" data-slgroup="bg">
+                ${Object.keys(SL_BG).map((k) => `<button class="sl-chip sw${SL.bg === k ? ' on' : ''}" data-sl="bg" data-v="${k}"><i style="background:linear-gradient(135deg,${SL_BG[k].from},${SL_BG[k].to})"></i>${SL_BG[k].name}</button>`).join('')}
+              </div>
+            </div>
+            <div class="sl-row"><span class="sl-lb">가운데 글자</span>
+              <div class="sl-chips" data-slgroup="glyph">
+                ${Object.keys(SL_GLYPH).map((k) => `<button class="sl-chip${SL.glyph === k ? ' on' : ''}" data-sl="glyph" data-v="${k}">${esc(SL_GLYPH[k])}</button>`).join('')}
+              </div>
+            </div>
+            <div class="sl-row"><span class="sl-lb">비율</span>
+              <div class="sl-chips" data-slgroup="ratio">
+                ${['1:1', '16:9'].map((k) => `<button class="sl-chip${SL.ratio === k ? ' on' : ''}" data-sl="ratio" data-v="${k}">${k === '1:1' ? '1:1 정사각 (1000×1000)' : '16:9 가로 (1600×900)'}</button>`).join('')}
+              </div>
+            </div>
+            <div class="sl-row col"><span class="sl-lb">하단 문구 (선택)</span>
+              <input id="slCaption" class="sc-input" type="text" maxlength="34" placeholder="예: 2026 KBO 이적 시장 정리" value="${esc(SL.caption)}">
+            </div>
+            <div class="sl-row col"><span class="sl-lb">내 사진 (선택)</span>
+              <div class="sl-photo">
+                <button class="btn ghost sm" id="slPick">📷 내 사진 올려서 블러+?</button>
+                <button class="btn ghost sm hidden" id="slBack">↩ 실루엣으로</button>
+                <span class="sl-ph" id="slPhName"></span>
+              </div>
+              <p class="sl-caution">※ TV조선·채널A 등 금지 방송 캡처는 블러해도 사용 금지예요. <b>직접 찍은 사진</b>만 올려 주세요.</p>
+              <input type="file" id="slPhotoInput" accept="image/*" class="hidden">
+            </div>
+            <div class="sl-btns">
+              <button class="btn" id="slMake">🎨 실루엣 이미지 만들기</button>
+              <button class="btn soft" id="slSave">💾 PNG 저장</button>
+            </div>
+            <p class="sl-note">사진·폰트 파일 없이 캔버스로만 그립니다. 네이버 대표 이미지는 1000×1000(1:1)을 권장해요.</p>
+          </div>
+          <div class="sl-preview">
+            <canvas id="slCanvas" width="1000" height="1000"></canvas>
+            <div class="sl-meta" id="slMeta"></div>
+          </div>
+        </div>
+      </div>`;
+    SL.bound = true;
+    $('#view-silhouette').addEventListener('click', (ev) => {
+      const chip = ev.target.closest('[data-sl]');
+      if (chip) {
+        SL[chip.dataset.sl] = chip.dataset.v;
+        LS.set('yc.sl.' + chip.dataset.sl, chip.dataset.v);
+        $$('[data-sl="' + chip.dataset.sl + '"]', $('#view-silhouette')).forEach((b) => b.classList.toggle('on', b.dataset.v === chip.dataset.v));
+        slDraw();
+        return;
+      }
+      if (ev.target.closest('#slMake')) { slDraw(); toast('썸네일을 만들었어요 🎨'); return; }
+      if (ev.target.closest('#slSave')) { slSave(); return; }
+      if (ev.target.closest('#slPick')) { const f = $('#slPhotoInput'); if (f) f.click(); return; }
+      if (ev.target.closest('#slBack')) {
+        SL.mode = 'silhouette'; SL.img = null; SL.imgName = '';
+        slDraw(); toast('실루엣 모드로 돌아왔어요');
+        return;
+      }
+    });
+    const phIn = $('#slPhotoInput');
+    if (phIn) phIn.addEventListener('change', () => { if (phIn.files && phIn.files[0]) slLoadPhoto(phIn.files[0]); });
+    const cap = $('#slCaption');
+    if (cap) {
+      let t = 0;
+      cap.addEventListener('input', () => {
+        SL.caption = cap.value;
+        LS.set('yc.sl.caption', cap.value);
+        clearTimeout(t); t = setTimeout(slDraw, 120);
+      });
+    }
+  }
+  $('#nav').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === 'silhouette'));
+  slDraw();
+}
+
+function slSave() {
+  const cv = $('#slCanvas');
+  if (!cv) return;
+  const name = '실루엣썸네일_' + (SL.caption || '').trim().replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 20) + '_' + slSize().join('x') + '.png';
+  cv.toBlob((blob) => {
+    if (!blob) { toast('저장이 막혔어요 · 미리보기를 길게 눌러 저장해 주세요'); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name.replace(/^_+/, '썸네일_');
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    toast('PNG로 저장했어요 · 다운로드 폴더 확인 💾');
+  }, 'image/png');
+}
+
+/* 테스트용 */
+window.__sl = {
+  state: SL, draw: slDraw, save: slSave, render: renderSilhouette, loadPhoto: slLoadPhoto,
+  dataUrl: () => ($('#slCanvas') ? $('#slCanvas').toDataURL('image/png') : ''),
+  size: slSize,
+};
