@@ -184,6 +184,16 @@ function mergeStates(local, incoming) {
     }
   }
   for (const k of Object.keys(l.picks || {})) if (l.picks[k]) out.picks[k] = true;
+
+  // 지운 글(tombstone) 합치기 — 최신 삭제 시각 유지
+  const rm = Object.assign({}, (incoming || {}).removed || {});
+  for (const [u, ts] of Object.entries(l.removed || {})) rm[u] = Math.max(Number(rm[u] || 0), Number(ts || 0));
+  out.removed = rm;
+  for (const day of Object.values(out.entries)) {
+    for (const e of Object.values(day)) {
+      if (e.posts) e.posts = e.posts.filter((p) => !rm[p.url]);
+    }
+  }
   if (!out.materials) out.materials = l.materials || {};
   if (!out.materials_history) out.materials_history = l.materials_history || {};
   return out;
@@ -200,7 +210,7 @@ function dayEntry(date, bid) {
   const e = APP.state && APP.state.entries ? APP.state.entries[date] : null;
   return (e && e[bid]) || null;
 }
-function postsOf(date, bid) { const e = dayEntry(date, bid); return (e && e.posts) || []; }
+function postsOf(date, bid) { return livePosts(dayEntry(date, bid)); }
 
 /** 블로그 한 곳의 기수 성적 — 점수는 '포스팅 점수 + 방문·수익 증가분'
  *  · 글 1편 = 1,000점 (하루 10편까지 인정 → 하루 최대 10,000점)
@@ -221,7 +231,7 @@ function blogStats(blog, round) {
 
   days.forEach((d, i) => {
     const e = dayEntry(d, blog.id);
-    const n = e ? (e.posts || []).length : 0;
+    const n = livePosts(e).length;
     const v = e ? Number(e.views || 0) : null;
     const r = e ? Number(e.revenue || 0) : null;
 
@@ -280,7 +290,7 @@ function streakOf(blog, round) {
   const today = kstDate();
   const done = (d) => {
     const e = dayEntry(d, blog.id);
-    return !!e && (e.posts || []).length >= blog.goal && blog.goal > 0;
+    return (livePosts(e).length >= blog.goal) && blog.goal > 0;
   };
   let cur = 0, idx = days.indexOf(today);
   if (idx < 0) idx = days.filter((d) => d <= today).length - 1;
@@ -307,7 +317,7 @@ function growth(blog, round) {
     if (d > today) break;
     const e = dayEntry(d, blog.id);
     if (!e) continue;
-    const n = (e.posts || []).length;
+    const n = livePosts(e).length;
     if (n >= blog.goal && blog.goal > 0) { xp += 100; doneDays++; }
     xp += Math.min(n * 10, 100);
   }
@@ -335,7 +345,7 @@ function growthScore(blog, round) {
     if (d > today) break;
     const e = dayEntry(d, blog.id);
     if (!e) continue;
-    posts += (e.posts || []).length;
+    posts += livePosts(e).length;
     last = { views: Number(e.views || 0), revenue: Number(e.revenue || 0), date: d };
   }
   const attain = Math.round((posts / (blog.goal * elapsed)) * 100);
@@ -358,7 +368,7 @@ function todayAwards(round) {
   const today = kstDate();
   const rows = APP.state.blogs.map((b) => {
     const e = dayEntry(today, b.id) || { posts: [], views: 0, revenue: 0 };
-    const n = (e.posts || []).length;
+    const n = livePosts(e).length;
     const p = prevVals(b.id, round, today);
     const dViews = Math.max(0, Number(e.views || 0) - p.views);
     const dRev = Math.max(0, Number(e.revenue || 0) - p.revenue);
@@ -393,7 +403,7 @@ function pendingCerts(round) {
     if (d >= today) break;
     for (const b of APP.state.blogs) {
       const e = dayEntry(d, b.id);
-      const n = e ? (e.posts || []).length : 0;
+      const n = livePosts(e).length;
       if (n < b.goal) {
         const dl = certDeadline(d);
         if (dl > now) out.push({ date: d, blog: b, n, left: dl - now });
@@ -893,10 +903,10 @@ function dayCell(ds, sel, selBlog) {
     const e = dayEntry(ds, b.id);
     if (e) {
       views += Number(e.views || 0); rev += Number(e.revenue || 0);
-      (e.posts || []).forEach((p) => posts.push({ ...p, blog: b }));
+      livePosts(e).forEach((p) => posts.push({ ...p, blog: b }));
     }
     goal += b.goal;
-    n += (e && e.posts ? e.posts.length : 0);
+    n += livePosts(e).length;
   }
   const today = kstDate();
   let cls = 'plan', label = '예정';
@@ -1052,7 +1062,7 @@ function openDay(date) {
   const blogs = sel === 'all' ? s.blogs : s.blogs.filter((b) => b.id === sel);
   const rows = blogs.map((b) => {
     const e = dayEntry(date, b.id) || { posts: [], views: 0, revenue: 0 };
-    const posts = e.posts || [];
+    const posts = livePosts(e);
     return `<div class="drow" style="align-items:flex-start">
       <div class="who"><img class="av av-img" src="${b.avatar}" alt="">
         <div style="min-width:0;flex:1">
@@ -1090,12 +1100,19 @@ function openDay(date) {
 }
 
 /** 이미 등록된 URL 인지 (기수 전체 · 블로그 무관 중복 차단) */
+/** 지운 글은 tombstone 으로 걸러낸다 (다른 기기에서 되살아나지 않게) */
+function livePosts(e) {
+  if (!e) return [];
+  const rm = APP.state.removed || {};
+  return (e.posts || []).filter((p) => !rm[p.url]);
+}
+
 function findUrl(url) {
   const norm = (u) => String(u || '').split('?')[0].replace(/\/$/, '');
   const target = norm(url);
   for (const [date, day] of Object.entries(APP.state.entries || {})) {
     for (const [bid, e] of Object.entries(day)) {
-      for (const p of (e.posts || [])) {
+      for (const p of livePosts(e)) {
         if (norm(p.url) === target) return { date, bid, post: p };
       }
     }
@@ -1180,6 +1197,7 @@ function openAdd(blogId, date) {
       if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
       const found = findUrl(u);
       if (found) { dup++; continue; }
+      if (APP.state.removed && APP.state.removed[u]) delete APP.state.removed[u];
       e.posts.push({
         url: u,
         title: (list.length === 1 ? ($('#addTitle').value || '').trim() : '') || u.replace(/^https?:\/\//, ''),
@@ -1309,6 +1327,8 @@ function bindEvents() {
       const [bid, date, url] = del.dataset.del.split('|');
       const enc = ensureEntry(date, bid);
       enc.posts = enc.posts.filter((p) => p.url !== url);
+      APP.state.removed = APP.state.removed || {};
+      APP.state.removed[url] = Date.now();
       enc.ts = Date.now();
       saveLocal(); queuePush(); openDay(date); renderAll(); toast('삭제했어요');
       return;
