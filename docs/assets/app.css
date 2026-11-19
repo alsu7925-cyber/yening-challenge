@@ -349,7 +349,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .sheet{
   position:fixed;left:0;right:0;bottom:0;z-index:81;
   background:var(--paper);border-radius:22px 22px 0 0;
-  transform:translateY(105%);transition:transform .22s cubic-bezier(.22,.61,.36,1);
+  transform:translateY(115vh);transition:transform .22s cubic-bezier(.22,.61,.36,1);
   max-height:88vh;display:flex;flex-direction:column;
   box-shadow:0 -12px 40px rgba(110,75,63,.18);
   padding-bottom:env(safe-area-inset-bottom);
@@ -362,7 +362,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .sheet-body{padding:6px 18px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sheet-foot{padding:10px 18px 16px;border-top:1px solid var(--line);background:var(--paper);position:sticky;bottom:0}
 @media(min-width:720px){
-  .sheet{left:50%;transform:translate(-50%,105%);width:520px;bottom:24px;border-radius:20px}
+  .sheet{left:50%;transform:translate(-50%,115vh);width:520px;bottom:24px;border-radius:20px}
   .sheet.on{transform:translate(-50%,0)}
 }
 .field{margin-bottom:12px}
@@ -438,3 +438,39 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .mini-input:focus{border-color:var(--rose);background:#fff}
 .day{cursor:pointer}
 .day:focus-visible{outline:2px solid var(--rose);outline-offset:2px}
+
+/* ── 리그: 시상식 · 캐릭터 · 순위 모드 · 기수 결산 ── */
+.banner-warn{background:linear-gradient(135deg,#FFF3C4 0%,#FFFAE4 70%);border-color:#F3E2B8 !important}
+.award-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.award-cell{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:10px 8px;text-align:center}
+.award-cell .a-ic{font-size:18px}
+.award-cell .a-lb{font-size:10.5px;font-weight:800;color:var(--brown-2);margin-top:2px}
+.award-cell .a-who{font-size:11.5px;font-weight:800;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.award-cell .a-val{font-size:11px;color:var(--rose-dark);font-weight:800;margin-top:1px}
+.chr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.chr{background:var(--paper);border:1px solid var(--line);border-radius:15px;padding:10px;cursor:pointer;transition:box-shadow .12s,transform .06s}
+.chr:hover{box-shadow:var(--shadow-sm)}
+.chr:active{transform:scale(.99)}
+.chr-top{display:flex;align-items:center;gap:7px}
+.chr-av{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--pink-soft);border:1px solid var(--blush);flex:0 0 auto}
+.chr .nm{font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chr .lv{font-size:10.5px;color:var(--rose-dark);font-weight:800}
+.chr-x{font-size:11px;font-weight:800;color:var(--brown-2);text-align:right}
+.chr-x span{font-size:9px;color:var(--muted);margin-left:2px}
+.xpbar{height:5px;border-radius:999px;background:var(--pink-soft);margin:8px 0 5px;overflow:hidden}
+.xpbar i{display:block;height:100%;background:linear-gradient(90deg,var(--rose-dust),var(--rose));border-radius:999px}
+.chr-foot{font-size:10.5px;color:var(--muted)}
+.chr-badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;font-size:9.5px;color:var(--brown-2)}
+.chr-badges span{background:var(--yellow);border-radius:999px;padding:1px 5px;font-weight:700}
+.mode-tabs{display:flex;gap:3px;background:var(--cream);border:1px solid var(--line);padding:3px;border-radius:999px;margin-left:auto}
+.mode-tabs button{padding:6px 12px;border-radius:999px;font-size:11.5px;font-weight:800;color:var(--brown-2)}
+.mode-tabs button.on{background:var(--rose);color:#fff}
+.note-box{background:var(--cream) !important;border-style:dashed !important;margin-top:10px}
+.nb-t{font-size:12px;font-weight:800;margin-bottom:4px}
+.nb-b{font-size:11.5px;color:var(--brown-2);line-height:1.65}
+.season-row{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px}
+.av-img{object-fit:cover;padding:0}
+@media(max-width:720px){
+  .award-grid{grid-template-columns:repeat(2,1fr)}
+  .chr-grid{grid-template-columns:repeat(2,1fr)}
+}
