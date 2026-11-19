@@ -473,6 +473,9 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .season-row{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px}
 .av-img{object-fit:cover;padding:0}
 @media(max-width:720px){
+  .chip-row{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .chip-row::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto}
   .award-grid{grid-template-columns:repeat(2,1fr)}
   .chr-grid{grid-template-columns:repeat(2,1fr)}
 }
