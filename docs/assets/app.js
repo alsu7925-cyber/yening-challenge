@@ -1178,7 +1178,7 @@ function scoreHomeTitle(raw) {
   if (quoted) { hook += 10; good.push('따옴표 대화체로 시작해서 스크롤하다 눈이 먼저 멈춰요.'); }
   if (emo.length) { hook += 8; good.push('앞부분 "' + emo[0] + '" 한마디가 도발·궁금증을 만들어요.'); }
   if (numFront) { hook += 8; good.push('앞부분 숫자가 "얼마나·언제"라는 구체적인 기대를 만듭니다.'); }
-  if (contr.length) { hook += 5; good.push('"' + contr[0] + '" 같은 앞뒤 대비 구조가 있어요.'); }
+  if (contr.length) { hook += 5; good.push('앞부분 "' + contr[0] + '"가 들어가 앞뒤를 견주는 흐름이 있어요.'); }
   if (qm) { hook += 4; good.push('물음표·감탄·ㅋㅋ 같은 말투가 살아 있어 말하듯 읽혀요.'); }
   if (rhymeStrong) { hook += 5; good.push('"' + rhyme + '"처럼 반복되는 말장난이 리듬을 만들어요.'); }
   if (frontPlain) {
@@ -1305,7 +1305,7 @@ function scorerNode() {
   box.className = 'scorer card';
   box.innerHTML = `
     <div class="sc-head"><span>🎯 홈판 제목 점수기</span><span class="pill dust">앞 12~14자 기준</span></div>
-    <div class="sc-sub">정하신 제목을 넣으면 홈판 카드에서 몇 점인지, 어디가 약한지 바로 짚어 드려요.(100점 만점 · 바로 계산)</div>
+    <div class="sc-sub">정하신 제목을 넣으면 홈판 카드에서 몇 점인지, 어디가 약한지 바로 짚어 드려요. (100점 만점 · 바로 계산)</div>
     <div class="sc-row">
       <input class="sc-input" type="text" maxlength="120" placeholder="제목을 붙여넣거나 입력" autocomplete="off" enterkeyhint="go">
       <button class="btn sc-go" data-sc="go">채점</button>
