@@ -614,7 +614,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   padding:7px 10px;outline:none;min-width:0;
 }
 .ft-endrow #ftGreet{flex:1 1 220px}
-.ft-endrow .ft-end-area{flex:1 1 100%;resize:vertical;line-height:1.6;min-height:44px}
+.ft-endrow .ft-end-area{flex:1 1 100%;resize:vertical;line-height:1.65;min-height:68px}
 .ft-endrow .ft-end-in:focus{border-color:var(--rose);background:#fff}
 .ft-endrow .ft-end-in:disabled{opacity:.5;cursor:not-allowed}
 .ft-endrow .ft-switch:has(input:disabled){opacity:.5;cursor:not-allowed}
