@@ -2088,7 +2088,7 @@ const FT_BLOGS = [
   {
     id: 'ye_zib', name: '예지브러리', emoji: '📚', handle: 'ye_zib',
     badge: '#C88189', accent: '#B26F79',
-    hl: '#FCE0E4', boldColor: '#B26F79', boldSize: 0,
+    hl: '#FFD6E0', boldColor: '#B26F79', boldSize: 0,
     body: 16, sub: 19, subColor: '#6E4B3F', subBar: '#DFA2A5', h1: 23,
     quote: { bg: '#FFF8F6', bar: '#DFA2A5', color: '#6E4B3F' },
     hr: '#EFE2DA', th: '#FBEAEC',
@@ -2099,7 +2099,7 @@ const FT_BLOGS = [
   {
     id: 'pick_moa', name: '픽모아', emoji: '🛍️', handle: 'pick_moa',
     badge: '#3D6DB5', accent: '#2C5B9E',
-    hl: '#DDE9FA', boldColor: '#24466F', boldSize: 0,
+    hl: '#FFF1C2', boldColor: '#24466F', boldSize: 0,
     body: 15, sub: 17, subColor: '#24466F', subBar: '#6E96CC', h1: 22,
     quote: { bg: '#F5F9FE', bar: '#9DBBE6', color: '#24466F' },
     hr: '#DCE6F2', th: '#E8F0FB',
@@ -2110,7 +2110,7 @@ const FT_BLOGS = [
   {
     id: 'savedesk', name: '세이브데스크', emoji: '💰', handle: 'savedesk',
     badge: '#1E8E6B', accent: '#0F6B52',
-    hl: '#D8F5E7', boldColor: '#0F6B52', boldSize: 0,
+    hl: '#FBE3D4', boldColor: '#0F6B52', boldSize: 0,
     body: 15, sub: 17, subColor: '#14544A', subBar: '#5CBFA0', h1: 22,
     quote: { bg: '#F2FBF7', bar: '#A9E0C9', color: '#14544A' },
     hr: '#D8EDE4', th: '#E3F7EE',
@@ -2152,6 +2152,17 @@ const FT_BLOGS = [
     tone: '레드/네이비 · 3분 브리핑',
     rules: ['스포츠 레드/네이비 형광펜', '3분 브리핑 요약 박스', '⚾ 스포브리핑이었습니다'],
     closing: ['⚾ 3분 브리핑', '핵심만 빠르게 정리했습니다. 스포브리핑이었습니다 ⚾'],
+  },
+  {
+    id: 'jjinjjin', name: '찐찡이네', emoji: '🍼', handle: 'jjinjjin',
+    badge: '#E8A657', accent: '#C97E3C',
+    hl: '#FFF3B0', boldColor: '#A9662F', boldSize: 0,
+    body: 15, sub: 17, subColor: '#6B4A2F', subBar: '#EBC07A', h1: 22,
+    quote: { bg: '#FFFBF2', bar: '#F0D399', color: '#6B4A2F' },
+    hr: '#F0E4D2', th: '#FFF7DC',
+    tone: '다정한 해요체 · 신생아 육아 기록',
+    rules: ['15pt 본문 · 연노랑 형광펜', '육아 기록 톤 · 날짜·개월 수 강조', '🍼 찐찡이네였습니다'],
+    closing: ['🍼 찐찡이네 한 줄', '쭈니의 하루를 담아둡니다. 찐찡이네였습니다 🍼'],
   },
 ];
 
@@ -2201,16 +2212,23 @@ function ftClean(txt) {
 const FT_HR = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
 const FT_SEP = /^\|?[\s:|-]+\|?[\s:|-]*$/;
 
-/* 원고 → 블록 */
+/* 원고 → 블록 (빈 줄 위치까지 기억 — 마크다운 없는 쌩 텍스트의 소제목 감지에 사용) */
 function ftParse(src) {
   const lines = ftClean(src).split('\n');
   const out = [];
   let i = 0;
+  let gap = true;                                  // 직전 블록 뒤에 빈 줄(문서 시작 포함)이 있었는지
+  const add = (bk) => {
+    if (out.length) out[out.length - 1].gapAfter = gap;
+    bk.gapBefore = gap;
+    out.push(bk);
+    gap = false;
+  };
   while (i < lines.length) {
     const line = lines[i].trim();
-    if (!line) { i++; continue; }
+    if (!line) { gap = true; i++; continue; }
 
-    if (FT_HR.test(line)) { out.push({ t: 'hr' }); i++; continue; }
+    if (FT_HR.test(line)) { add({ t: 'hr' }); i++; continue; }
 
     if (line.charAt(0) === '|' && lines[i + 1] && FT_SEP.test(lines[i + 1].trim()) && lines[i + 1].indexOf('-') >= 0) {
       const rows = [];
@@ -2218,7 +2236,7 @@ function ftParse(src) {
       while (j < lines.length && lines[j].trim().charAt(0) === '|') { rows.push(lines[j].trim()); j++; }
       const cells = rows.filter((r, idx) => !(idx === 1 && FT_SEP.test(r) && r.indexOf('-') >= 0))
         .map((r) => r.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim()));
-      out.push({ t: 'table', rows: cells });
+      add({ t: 'table', rows: cells });
       i = j; continue;
     }
 
@@ -2228,19 +2246,19 @@ function ftParse(src) {
         parts.push(lines[i].trim().replace(/^>\s?/, '').trim());
         i++;
       }
-      out.push({ t: 'q', s: parts.filter(Boolean).join('\n') });
+      add({ t: 'q', s: parts.filter(Boolean).join('\n') });
       continue;
     }
 
     let m = line.match(/^(#{1,3})\s+(.*)$/);
-    if (m) { out.push({ t: 'h' + m[1].length, s: m[2].trim() }); i++; continue; }
+    if (m) { add({ t: 'h' + m[1].length, s: m[2].trim() }); i++; continue; }
 
     if (/^[-*+]\s+/.test(line)) {
       const items = [];
       while (i < lines.length && /^[-*+]\s+/.test(lines[i].trim())) {
         items.push(lines[i].trim().replace(/^[-*+]\s+/, '')); i++;
       }
-      out.push({ t: 'ul', items }); continue;
+      add({ t: 'ul', items }); continue;
     }
 
     if (/^\d+[.)]\s+/.test(line)) {
@@ -2248,10 +2266,67 @@ function ftParse(src) {
       while (i < lines.length && /^\d+[.)]\s+/.test(lines[i].trim())) {
         items.push(lines[i].trim().replace(/^\d+[.)]\s+/, '')); i++;
       }
-      out.push({ t: 'ol', items }); continue;
+      add({ t: 'ol', items }); continue;
     }
 
-    out.push({ t: 'p', s: line }); i++;
+    add({ t: 'p', s: line }); i++;
+  }
+  if (out.length) out[out.length - 1].gapAfter = true;
+  return out;
+}
+
+/* ── 쌩 텍스트 자동 소제목 ─────────────────────────────────────────
+   마크다운 # 없이 붙여넣은 원고에서도 짧은 단독 줄은 소제목으로 승격한다. */
+const FT_HEAD_SKIP = [
+  /^(※|\*\s*※|\[?\s*(출처|참고|사진|이미지|광고|협찬)\s*[:：])/,           // 주석·출처·협찬 줄
+  /^(안녕하|안녕!|안녕,|안녕하세|반갑|반가|예브예요|예브입니다|예브였습니다|어서\s*오세요|다들\s*안녕)/, // 인사말
+  /(감사합니다|고맙습니다|이상입니다|여기까지입니다|마치겠습니다)\s*[.!]?$/,   // 맺음말
+  /^#\S/,                                                                    // 해시태그 덩어리
+  /^(문의|제휴|광고\s*문의)/,                                                // 문의 줄
+];
+
+/* 한 줄이 소제목 후보인지 — 후보면 표시용 평문을, 아니면 ''을 돌려준다 */
+function ftHeadText(bk) {
+  const raw = String(bk.s || '').trim();
+  let plain = raw.replace(/\[([^\]]+)\]\((?:https?:\/\/)?[^)\s]+\)/g, '$1').replace(/\*\*|==/g, '').trim();
+  const len = plain.length;
+  if (len < 2 || len > 28) return '';                       // 2~28자
+  if (/https?:\/\/|www\./i.test(raw)) return '';            // URL 줄
+  if (/^[-*+>|]|^\d+[.)]\s/.test(plain)) return '';          // 목록·표·인용 표시
+  if (/[.,;:·…]$/.test(plain)) return '';                    // 마침표 등으로 끝나면 본문
+  if (/\.\s/.test(plain)) return '';                         // 문장이 이어지는 줄은 본문
+  if (/(요|죠|네|다|까|냐|니|자|래|군|습니다|ㅂ니다|세요|해요|어요|아요|합니다|입니다|였습니다|했어|했죠)$/.test(plain.replace(/[?!~]+$/, ''))) return ''; // 말끝이 문장인 줄
+  if (!/[가-힣]/.test(plain) && !/[A-Za-z]{2,}/.test(plain)) return '';
+  if ((plain.match(/[가-힣A-Za-z]/g) || []).length < 2) return '';
+  const chk = plain.replace(/^[\[("'“”‘’]+/, '');
+  for (let i = 0; i < FT_HEAD_SKIP.length; i++) if (FT_HEAD_SKIP[i].test(chk)) return '';
+  return plain;
+}
+
+/* 자동 서식 다듬기가 켜져 있을 때: 단독 짧은 줄 → h2 */
+function ftAutoHeads(blocks) {
+  const out = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const bk = blocks[i];
+    const next = blocks[i + 1];
+    const prev = blocks[i - 1];
+    if (bk.t !== 'p' || !next) { out.push(bk); continue; }
+    const head = ftHeadText(bk);
+    if (!head) { out.push(bk); continue; }
+    const strip = (s) => String(s || '').replace(/\*\*|==/g, '').replace(/\s+/g, ' ').trim();
+    const nextLen = next.t === 'p' ? strip(next.s).length : 0;
+    const prevLen = prev && prev.t === 'p' ? strip(prev.s).length : 0;
+    const before = bk.gapBefore !== false;                    // 앞이 빈 줄(또는 문서 시작)
+    const after = bk.gapAfter !== false;                      // 뒤가 빈 줄
+    const alone = before && after;                            // 앞뒤가 빈 줄인 단독 줄
+    const nextBody = next.t === 'p' && nextLen >= 20;         // 다음이 일반 본문 단락
+    const nextLong = next.t === 'p' && nextLen >= 30;         // 다음이 긴 본문(30자+)
+    let ok = false;
+    if (/[?!]$/.test(head)) ok = alone || nextLong;           // 짧은 의문·감탄 소제목
+    else if (alone) ok = true;
+    else if ((before || after) && nextBody) ok = true;
+    else if (nextLong && (prevLen >= 30 || i === 0)) ok = true; // 줄바꿈만 있는 쌩 텍스트
+    out.push(ok ? Object.assign({}, bk, { t: 'h2', s: head, autoHead: true }) : bk);
   }
   return out;
 }
@@ -2269,6 +2344,7 @@ function ftPickSentence(txt) {
 
 /* 자동 서식: 핵심 문장 형광펜 + 기준일 문구 + 마무리 */
 function ftAuto(blocks, b) {
+  blocks = ftAutoHeads(blocks);
   let used = false;
   let hasBold = false;
   const out = blocks.map((bk) => {
