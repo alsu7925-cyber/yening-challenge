@@ -2090,8 +2090,9 @@ function mgSave(type, ext) {
      /pick_moa 224482804309, /worddesk 224482801772·224477433733, /mybodydesk 224482707737
    · 소제목 왼쪽 세로선은 실제 글에 없다(전 글 border-left 0건) → 넣지 않는다.
    · 첫인사는 예지브러리만(안녕하세요, 예브예요🤍). 나머지 블로그 글에는 없다 → 자동 삽입 안 함.
+   · 마무리 끝인사(인용구 3줄)도 예지브러리만 자동 삽입. 나머지 6곳은 넣지 않는다(2026-11-20).
    · 내몸데스크는 문서 확정값(포인트 #1F7A5C · 형광펜 #c2f4db · 표 #e5fcf0) 유지. */
-/* 블로그별 프리셋. closing 문구는 자동 삽입 기능을 쓰지 않기로 해(2026-11-20) 화면에 쓰지 않고 데이터로만 둔다. */
+/* 블로그별 프리셋. 마무리 끝인사 자동 삽입은 예지브러리(closingQuote)만 쓴다 — 나머지 6곳은 넣지 않는다(2026-11-20 지시). */
 const FT_BLOGS = [
   {
     id: 'ye_zib', name: '예지브러리', emoji: '📚', handle: 'ye_zib',
@@ -2104,6 +2105,9 @@ const FT_BLOGS = [
     tone: '담백한 해요체 · 인용구 훅 2줄',
     rules: ['본문 16px · 연핑크 형광펜 #FFD6E0', '소제목 30px · 첫인사 자동', '인용구 훅 · 형광펜 문장 19px'],
     closing: ['💬 예브의 한마디', '오늘도 예지브러리에 이야기 하나를 꽂아둡니다. 📚', '먹고, 써보고, 놀고! 예지브러리였습니다 📚'],
+    // 실제 발행 글(ye_zib 224482812032)의 마무리 인용구 3줄 — 예지브러리에만 자동 삽입
+    closingStyle: 'quote',
+    closingQuote: '먹고, 써보고, 놀고!\n직접 경험한 이야기부터 궁금해서 끝까지 파헤쳐 본 이야기까지.\n예브의 잡다한 취향을 담은 작은 도서관, **예지브러리**였습니다. 📚',
   },
   {
     id: 'pick_moa', name: '픽모아', emoji: '🛍️', handle: 'pick_moa',
@@ -2168,14 +2172,51 @@ const FT_BLOGS = [
     hl: '#FFF3B0', hlSize: 19, boldColor: '#A9662F', boldSize: 0,
     body: 16, sub: 30, subColor: '#6B4A2F', h1: 24,
     quote: { bg: '#FFFBF2', bar: '#F0D399', color: '#6B4A2F', size: 24 },
-    hr: '#F0E4D2', th: '#FFF7DC',
+    hr: '#e0e0e0', hrMargin: 24, th: '#FFF7DC',
     tone: '다정한 해요체 · 신생아 육아 기록',
-    rules: ['본문 16px · 연노랑 형광펜 #FFF3B0', '소제목 30px · 첫인사 없음', '육아 기록 톤 · 날짜·개월 수 강조'],
-    closing: ['🍼 찐찡이네 한 줄', '쭈니의 하루를 담아둡니다. 찐찡이네였습니다 🍼'],
+    rules: ['본문 16px · 연노랑 형광펜 #FFF3B0', '소제목 30px · 첫인사 자동(찐찡맘만 굵게)', '회색 구분선 + 💛 찐찡맘 총평 마무리'],
+    greet: '안녕하세요, **찐찡맘**이에요:)',
+    closing: ['💛 찐찡맘 총평', '오늘도 쭈니네 기록 보러 와주셔서 감사해요💛', '도움이 되셨다면 공감과 댓글 부탁드려요:)'],
+    closingStyle: 'section',
+    closingQuote: '💛 찐찡맘 총평\n오늘도 쭈니네 기록 보러 와주셔서 감사해요💛\n도움이 되셨다면 공감과 댓글 부탁드려요:)',
   },
 ];
 
-const FT = { blog: 'ye_zib', auto: true, bound: false, built: null };
+const FT = { blog: 'ye_zib', auto: true, bound: false, built: null, custom: {} };
+
+/* 블로그별 첫인사·마무리 문구는 화면 입력란에서 고친다(블로그별로 기억).
+   값이 없으면 프리셋 기본값으로 채운다. */
+function ftEdit(b) {
+  if (!FT.custom) FT.custom = {};
+  let e = FT.custom[b.id];
+  if (!e) {
+    e = { greet: b.greet || '', greetOn: !!b.greet, close: b.closingQuote || '', closeOn: !!b.closingQuote };
+    FT.custom[b.id] = e;
+  }
+  return e;
+}
+
+/* 첫인사·마무리 입력란을 지금 블로그 값으로 채운다. 프리셋에 없는 블로그는 잠근다. */
+function ftEndSync() {
+  const b = ftBlog();
+  const e = ftEdit(b);
+  const go = $('#ftGreetOn'), gi = $('#ftGreet'), co = $('#ftCloseOn'), ci = $('#ftClose');
+  if (!go || !co) return;
+  const gok = !!b.greet, cok = !!b.closingQuote;
+  go.disabled = !gok; gi.disabled = !gok; co.disabled = !cok; ci.disabled = !cok;
+  go.checked = gok && !!e.greetOn;
+  co.checked = cok && !!e.closeOn;
+  gi.value = gok ? (e.greet || '') : '';
+  ci.value = cok ? (e.close || '') : '';
+  gi.placeholder = gok ? '첫인사 문구' : '이 블로그는 첫인사를 넣지 않아요';
+  ci.placeholder = cok ? '마무리 문구 (줄바꿈으로 나눔)' : '이 블로그는 마무리 끝인사를 넣지 않아요';
+  const note = $('#ftEndNote');
+  if (note) {
+    note.textContent = (gok || cok)
+      ? b.name + ' — 첫인사·' + (b.closingStyle === 'section' ? '구분선·마무리 총평' : '마무리 인용구') + '를 자동으로 넣어요. 문구는 여기서 고치면 블로그별로 기억합니다.'
+      : b.name + ' — 첫인사·마무리 끝인사 자동 삽입 없음(직접 써 주세요).';
+  }
+}
 
 function ftBlog() { return FT_BLOGS.find((b) => b.id === FT.blog) || FT_BLOGS[0]; }
 
@@ -2223,13 +2264,68 @@ function ftClean(txt) {
 }
 
 /* ── 입력창 도구 두 가지 (2026-11-20 요청) ────────────────────────
-   빈줄정리: 빈 줄이 2줄 이상 연속된 곳만 빈 줄 1줄로(1줄짜리 빈 줄은 그대로)
-   빈줄넣기: 소제목(#·##·### 및 쌩텍스트 소제목) 앞뒤에 빈 줄 1줄 — 중복 빈 줄은 1줄로 */
-function ftSquashBlank(txt) {
-  return String(txt || '')
-    .replace(/\r\n?/g, '\n')
-    .replace(/[ \t]+$/gm, '')
-    .replace(/\n(?:[ \t]*\n)+/g, '\n\n');
+   실제 발행 글(ye_zib 224482812032 · jjinjjingne 224481366475) 빈 줄 규칙:
+   · 문단 사이 빈 줄 1개(2줄 이상 연속 금지) · 첫인사 뒤 빈 줄 1개
+   · 목록(✓ · - · • · 1.)은 앞 문장(출처 문장)·앞 항목에 붙이고, 목록이 끝나면 빈 줄 1개
+   · 형광펜 문장 뒤 빈 줄 1개 · 구분선 앞뒤 빈 줄 1개
+   빈줄정리: 위 규칙대로 빈 줄을 정리(2줄 이상 → 1줄)
+   빈줄넣기: 빈줄정리 + 소제목(#·##·### 및 쌩텍스트 소제목) 앞뒤 빈 줄 1줄 */
+const FT_LI = /^(?:✓|✔|☐|·|•|[-*+]\s|\d+[.)]\s)/;
+function ftIsListLine(t) { return FT_LI.test(String(t || '').trim()); }
+const FT_GREET_LINE = /^(안녕하|반갑|어서\s*오세요|다들\s*안녕)/;
+/* 핵심정리·Q&A 소제목 다음은 빈 줄 없이 바로 본문을 붙이는 블로그(2026-11-20 지시) */
+const FT_TIGHT_BLOGS = ['pick_moa', 'savedesk', 'mybodydesk'];
+const FT_TIGHT_HEAD = /(핵심\s*정리|한눈에\s*보는|Q\s*[&＆]\s*A|QnA|Q\.|자주\s*묻는)/i;
+function ftTightHead(line, blogId) {
+  if (FT_TIGHT_BLOGS.indexOf(blogId) < 0) return false;
+  return FT_TIGHT_HEAD.test(String(line || '').replace(/^#{1,3}\s*/, '').replace(/[*_=\[\]()]/g, ' ').replace(/\s+/g, ' ').trim());
+}
+
+function ftSquashBlank(txt, blogId) {
+  const lines = String(txt || '').replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').split('\n');
+  const isBlank = (l) => !String(l).trim();
+  // 1) 연속 빈 줄은 1줄로
+  const a = [];
+  for (const ln of lines) {
+    if (isBlank(ln)) { if (!a.length || isBlank(a[a.length - 1])) continue; a.push(''); }
+    else a.push(ln);
+  }
+  // 2) 목록은 앞 문장·앞 항목에 붙인다(출처 문장 + ✓ 체크리스트)
+  const b = [];
+  for (let i = 0; i < a.length; i++) {
+    const ln = a[i];
+    if (isBlank(ln)) {
+      const nx = a.slice(i + 1).find((x) => !isBlank(x));
+      const pv = b.slice().reverse().find((x) => !isBlank(x));
+      if (nx && ftIsListLine(nx) && pv && !/^#{1,3}\s/.test(pv.trim()) && !FT_HR.test(pv.trim())) continue;
+      b.push(''); continue;
+    }
+    b.push(ln.trim());
+  }
+  // 3) 구분선 앞뒤 · 목록 끝 · 형광펜 문장 뒤 · 첫인사 뒤 빈 줄 1개
+  const out = [];
+  for (let i = 0; i < b.length; i++) {
+    const ln = b[i];
+    if (!ln) {
+      const pv = out.length ? out[out.length - 1] : '';
+      if (pv && ftTightHead(pv, blogId)) continue;          // 핵심정리·Q&A 소제목 뒤 빈 줄은 뺀다
+      if (out.length && pv !== '') out.push('');
+      continue;
+    }
+    const isHr = FT_HR.test(ln);
+    if (isHr && out.length && out[out.length - 1] !== '') out.push('');
+    out.push(ln);
+    const next = b[i + 1];
+    const nextLi = next !== undefined && ftIsListLine(next);
+    const blankAfter = next !== undefined && next === '';
+    const needAfter = (isHr && next !== undefined)
+      || (ftIsListLine(ln) && !nextLi && next !== undefined)
+      || (!ftIsListLine(ln) && ln.indexOf('==') >= 0 && next !== undefined && !nextLi && !FT_HR.test(next))
+      || (FT_GREET_LINE.test(ln) && next !== undefined);
+    if (needAfter && next !== '' && !blankAfter) out.push('');
+  }
+  while (out.length && out[out.length - 1] === '') out.pop();
+  return out.join('\n');
 }
 
 /* 소제목으로 볼 행 번호 — 마크다운 #·##·### + ftHeadText가 감지하는 쌩텍스트 소제목 줄 */
@@ -2246,8 +2342,8 @@ function ftHeadLines(lines) {
   return set;
 }
 
-function ftAddBlank(txt) {
-  const lines = String(txt || '').replace(/\r\n?/g, '\n').split('\n').map((l) => l.replace(/[ \t]+$/, ''));
+function ftAddBlank(txt, blogId) {
+  const lines = ftSquashBlank(txt, blogId).split('\n').map((l) => l.replace(/[ \t]+$/, ''));
   const heads = ftHeadLines(lines);
   const out = [];
   for (let i = 0; i < lines.length; i++) {
@@ -2256,7 +2352,8 @@ function ftAddBlank(txt) {
       while (out.length && out[out.length - 1].trim() === '') out.pop();   // 앞 빈 줄 정리
       if (out.length) out.push('');
       out.push(ln.trim());
-      out.push('');
+      // 핵심정리·Q&A 소제목은 빈 줄 없이 바로 본문(픽모아·세이브데스크·내몸데스크)
+      if (!ftTightHead(ln, blogId)) out.push('');
       let j = i + 1;
       while (j < lines.length && lines[j].trim() === '') j++;              // 뒤 빈 줄은 하나만
       i = j - 1;
@@ -2319,6 +2416,14 @@ function ftParse(src) {
         items.push(lines[i].trim().replace(/^[-*+]\s+/, '')); i++;
       }
       add({ t: 'ul', items }); continue;
+    }
+
+    if (/^[✓✔☐•]\s*/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^[✓✔☐•]\s*/.test(lines[i].trim())) {
+        items.push(lines[i].trim()); i++;
+      }
+      add({ t: 'check', items }); continue;
     }
 
     if (/^\d+[.)]\s+/.test(line)) {
@@ -2402,8 +2507,8 @@ function ftPickSentence(txt) {
   return pick || null;
 }
 
-/* 첫인사 자동 문단 — 예지브러리에만 있다(실제 발행 글 확인: 나머지 블로그는 첫인사 없음) */
-const FT_GREET_RE = /(안녕하세요|예브\s*예요|예브입니다)/;
+/* 첫인사 자동 문단 — 예지브러리·찐찡이네만 있다(실제 발행 글 확인: 나머지 블로그는 첫인사 없음) */
+const FT_GREET_RE = /(안녕하세요|예브\s*예요|예브입니다|찐찡맘)/;
 function ftBlockText(bk) {
   if (!bk) return '';
   if (bk.items) return bk.items.join(' ');
@@ -2411,16 +2516,48 @@ function ftBlockText(bk) {
   return bk.s || '';
 }
 function ftAutoGreet(blocks, b) {
-  if (!b.greet) return blocks;                                  // 예지브러리 외에는 넣지 않는다
+  const e = ftEdit(b);
+  if (!e.greetOn || !String(e.greet || '').trim()) return blocks;   // 끄겠거나 첫인사가 없는 블로그는 넣지 않는다
   if (FT_GREET_RE.test(blocks.slice(0, 3).map(ftBlockText).join(' '))) return blocks;  // 앞 3줄에 이미 있으면 그대로
   let at = 0;
   while (at < blocks.length && (blocks[at].t === 'h1' || blocks[at].t === 'q')) at++;  // 제목·인용구 훅 다음
   const out = blocks.slice();
-  out.splice(at, 0, { t: 'greet', s: b.greet });
+  out.splice(at, 0, { t: 'greet', s: String(e.greet).trim() });
   return out;
 }
 
-/* 자동 서식: 쌩 텍스트 소제목 승격 + 핵심 문장 형광펜 + 기준일 문구 + 예지브러리 첫인사 */
+/* 마무리 끝인사 자동 삽입 — 예지브러리·찐찡이네만(closingQuote 있는 블로그만).
+   · 예지브러리(quote): 실제 발행 글처럼 인용구 3줄 한 덩어리
+   · 찐찡이네(section): 회색 구분선 → 💛 찐찡맘 총평(소제목) → 본문 줄들
+   이미 마무리가 있으면 넣지 않고, 맨 끝이 해시태그 줄이면 해시태그 바로 앞에 넣는다. */
+const FT_CLOSING_RE = /(예지브러리였습니다|꽂아둡니다|써보고,?\s*놀고|찐찡맘 총평|공감과 댓글)/;
+function ftClosingBlocks(b, text) {
+  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n').map((s) => s.trim()).filter(Boolean);
+  if (!lines.length) return [];
+  if (b.closingStyle === 'section') {
+    const out = [{ t: 'hr' }];
+    out.push({ t: 'h2', s: lines[0] });                        // 첫 줄은 소제목(💛 찐찡맘 총평)
+    for (let i = 1; i < lines.length; i++) out.push({ t: 'p', s: lines[i] });
+    return out;
+  }
+  return [{ t: 'q', s: lines.join('\n') }];
+}
+function ftAutoClosing(blocks, b) {
+  const e = ftEdit(b);
+  if (!b.closingQuote || !e.closeOn || !blocks.length) return blocks;   // 나머지 블로그는 절대 넣지 않는다
+  const cb = ftClosingBlocks(b, e.close);
+  if (!cb.length) return blocks;
+  const tail = blocks.slice(-5).map(ftBlockText).join(' ');
+  if (FT_CLOSING_RE.test(tail)) return blocks;                        // 이미 마무리가 있으면 그대로
+  const out = blocks.slice();
+  let at = out.length;
+  // 맨 끝 해시태그 줄(#태그 #태그)은 끝인사 뒤에 남긴다
+  while (at > 0 && out[at - 1].t === 'p' && /^\s*(#[^\s#]+\s*)+$/.test(String(out[at - 1].s || ''))) at--;
+  out.splice(at, 0, ...cb);
+  return out;
+}
+
+/* 자동 서식: 쌩 텍스트 소제목 승격 + 핵심 문장 형광펜 + 기준일 문구 + 예지브러리 첫인사·마무리 */
 function ftAuto(blocks, b) {
   blocks = ftAutoHeads(blocks);
   let used = false;
@@ -2448,7 +2585,7 @@ function ftAuto(blocks, b) {
       out.splice(at + 1, 0, { t: 'note', s: '※ 이 글의 금액·조건은 ' + d.getUTCFullYear() + '년 ' + (d.getUTCMonth() + 1) + '월 기준입니다.' });
     }
   }
-  return ftAutoGreet(out, b);
+  return ftAutoClosing(ftAutoGreet(out, b), b);      // 첫인사 다음, 문서 맨 끝에 예지브러리만 마무리
 }
 
 /* 인라인 표시 → HTML (이스케이프 후) — 실제 글처럼 형광펜 문장은 19px·굵게 */
@@ -2470,9 +2607,13 @@ function ftBlockHTML(bk, b) {
   if (bk.t === 'greet') return '<p style="' + bodyP + '">' + ftInline(bk.s, b) + '</p>';
   if (bk.t === 'note') return '<p style="font-size:' + Math.max(12, b.body - 3) + 'px;line-height:1.7;margin:0 0 16px;color:#8A7A72;">' + ftInline(bk.s, b) + '</p>';
   if (bk.t === 'q') return '<div style="background-color:' + b.quote.bg + ';border-left:4px solid ' + b.quote.bar + ';border-radius:8px;padding:16px 18px;margin:0 0 18px;"><p style="font-size:' + (b.quote.size || 24) + 'px;font-weight:700;line-height:1.85;margin:0;color:' + b.quote.color + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p></div>';
-  if (bk.t === 'hr') return '<p style="border-top:1px solid ' + b.hr + ';margin:30px 0;font-size:1px;line-height:1;">&nbsp;</p>';
+  if (bk.t === 'hr') return '<p style="border:none;border-top:1px solid ' + b.hr + ';margin:' + (b.hrMargin || 30) + 'px 0;font-size:1px;line-height:1;">&nbsp;</p>';
+  if (bk.t === 'check') {
+    // 실제 발행 글의 ✓ 체크리스트는 항목마다 본문 문단(✓ 기호를 그대로 둔다) — 항목끼리 붙여 쓴다
+    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'px;line-height:1.8;margin:0 0 ' + (i === bk.items.length - 1 ? 16 : 6) + 'px;color:' + tcol + ';">' + ftInline(it, b) + '</p>').join('');
+  }
   if (bk.t === 'ul' || bk.t === 'ol') {
-    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'px;line-height:1.8;margin:0 0 6px;padding-left:4px;color:' + tcol + ';">' + (bk.t === 'ul' ? '• ' : (i + 1) + '. ') + ftInline(it, b) + '</p>').join('');
+    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'px;line-height:1.8;margin:0 0 ' + (i === bk.items.length - 1 ? 16 : 6) + 'px;padding-left:4px;color:' + tcol + ';">' + (bk.t === 'ul' ? '• ' : (i + 1) + '. ') + ftInline(it, b) + '</p>').join('');
   }
   if (bk.t === 'table') {
     const rows = bk.rows.map((cells, ri) => {
@@ -2485,26 +2626,39 @@ function ftBlockHTML(bk, b) {
   return '';
 }
 
-function ftPlain(blocks) {
+function ftPlain(blocks, b) {
   const strip = (s) => String(s || '').replace(/==|\*\*/g, '').replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1 ($2)');
-  return blocks.map((bk) => {
-    if (bk.t === 'hr') return '──────────';
-    if (bk.t === 'ul') return bk.items.map((i) => '• ' + strip(i)).join('\n');
-    if (bk.t === 'ol') return bk.items.map((i, n) => (n + 1) + '. ' + strip(i)).join('\n');
-    if (bk.t === 'table') return bk.rows.map((r) => r.map(strip).join(' | ')).join('\n');
-    return strip(bk.s);
-  }).filter(Boolean).join('\n\n');
+  let out = '';
+  let prev = null;
+  blocks.forEach((bk) => {
+    let txt = '';
+    if (bk.t === 'hr') txt = '──────────';
+    else if (bk.t === 'check') txt = bk.items.map((i) => strip(i)).join('\n');
+    else if (bk.t === 'ul') txt = bk.items.map((i) => '• ' + strip(i)).join('\n');
+    else if (bk.t === 'ol') txt = bk.items.map((i, n) => (n + 1) + '. ' + strip(i)).join('\n');
+    else if (bk.t === 'table') txt = bk.rows.map((r) => r.map(strip).join(' | ')).join('\n');
+    else txt = strip(bk.s);
+    if (!txt) return;
+    // 출처 문장(~기준이에요.) 바로 밑에 붙은 목록은 빈 줄 없이 잇는다(실제 발행 글 서식)
+    const tight = out && prev && ((bk.t === 'ul' || bk.t === 'ol' || bk.t === 'check') && (bk.gapBefore === false
+      || (prev.t === 'p' && /(기준이에요|기준입니다|기준)\s*\.?\s*$/.test(String(prev.s || ''))))
+      // 핵심정리·Q&A 소제목 다음은 빈 줄 없이(픽모아·세이브데스크·내몸데스크)
+      || ((prev.t === 'h1' || prev.t === 'h2' || prev.t === 'h3') && b && ftTightHead(prev.s, b.id)));
+    out += (out ? (tight ? '\n' : '\n\n') : '') + txt;
+    prev = bk;
+  });
+  return out;
 }
 
 /* 미리보기 = 복사본과 같은 HTML */
 function ftBuild() {
   const b = ftBlog();
   let blocks = ftParse($('#ftInput') ? $('#ftInput').value : '');
-  if (FT.auto) blocks = ftAuto(blocks, b);                     // 마무리 끝인사 자동 삽입은 쓰지 않는다(2026-11-20 지시)
+  if (FT.auto) blocks = ftAuto(blocks, b);                     // 자동 정리 + 예지브러리 첫인사·마무리 끝인사
   const html = blocks.length
     ? '<div style="color:' + (b.text || '#3B3330') + ';word-break:keep-all;">' + blocks.map((bk) => ftBlockHTML(bk, b)).filter(Boolean).join('') + '</div>'
     : '';
-  return { html, text: ftPlain(blocks), blocks, blog: b };
+  return { html, text: ftPlain(blocks, b), blocks, blog: b };
 }
 
 function ftRender() {
@@ -2586,11 +2740,13 @@ function ftInit() {
   if (saved) {
     if (saved.blog && FT_BLOGS.some((b) => b.id === saved.blog)) FT.blog = saved.blog;
     FT.auto = saved.auto !== false;
+    if (saved.custom && typeof saved.custom === 'object') FT.custom = saved.custom;
   }
   const ta = $('#ftInput');
   if (saved && typeof saved.text === 'string') ta.value = saved.text;
   $('#ftAuto').checked = FT.auto;
   $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === FT.blog));
+  ftEndSync();
 
   let timer = 0;
   ta.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { ftRender(); ftSave(); }, 200); });
@@ -2599,19 +2755,31 @@ function ftInit() {
     if (!c) return;
     FT.blog = c.dataset.ftblog;
     $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === FT.blog));
-    ftRender(); ftSave();
+    ftEndSync(); ftRender(); ftSave();
+  });
+  // 첫인사·마무리 끝인사 입력란(블로그별로 기억)
+  $('#ftGreetOn').addEventListener('change', (e) => { ftEdit(ftBlog()).greetOn = e.target.checked; ftRender(); ftSave(); });
+  $('#ftCloseOn').addEventListener('change', (e) => { ftEdit(ftBlog()).closeOn = e.target.checked; ftRender(); ftSave(); });
+  let etimer = 0;
+  $('#ftGreet').addEventListener('input', (e) => {
+    ftEdit(ftBlog()).greet = e.target.value;
+    clearTimeout(etimer); etimer = setTimeout(() => { ftRender(); ftSave(); }, 200);
+  });
+  $('#ftClose').addEventListener('input', (e) => {
+    ftEdit(ftBlog()).close = e.target.value;
+    clearTimeout(etimer); etimer = setTimeout(() => { ftRender(); ftSave(); }, 200);
   });
   $('#ftAuto').addEventListener('change', (e) => { FT.auto = e.target.checked; ftRender(); ftSave(); });
   $('#ftSample').onclick = () => { ta.value = ftSample(); ftRender(); ftSave(); };
   $('#ftTidy').onclick = () => {
     if (!ta.value.trim()) { toast('원고를 먼저 붙여넣어 주세요'); return; }
-    const v = ftSquashBlank(ta.value);
+    const v = ftSquashBlank(ta.value, FT.blog);
     if (v === ta.value) { toast('빈 줄이 이미 깔끔해요'); return; }
     ta.value = v; ftRender(); ftSave(); toast('연속 빈 줄을 한 줄로 정리했어요');
   };
   $('#ftHeads').onclick = () => {
     if (!ta.value.trim()) { toast('원고를 먼저 붙여넣어 주세요'); return; }
-    const v = ftAddBlank(ta.value);
+    const v = ftAddBlank(ta.value, FT.blog);
     if (v === ta.value) { toast('소제목 앞뒤 빈 줄이 이미 맞아요'); return; }
     ta.value = v; ftRender(); ftSave(); toast('소제목 앞뒤에 빈 줄을 넣었어요');
   };
@@ -2632,7 +2800,7 @@ function ftInit() {
 function ftSave() {
   if (!FT.bound) return;
   LS.set('yc.ft', {
-    blog: FT.blog, auto: FT.auto,
+    blog: FT.blog, auto: FT.auto, custom: FT.custom,
     text: $('#ftInput').value,
   });
 }
@@ -2645,8 +2813,11 @@ window.__ft = {
   sample: ftSample,
   tidy: ftSquashBlank,
   blankHeads: ftAddBlank,
-  blog: (id) => { FT.blog = id; $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === id)); ftRender(); },
+  plain: ftPlain,
+  blog: (id) => { FT.blog = id; $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === id)); ftEndSync(); ftRender(); },
   auto: (v) => { FT.auto = !!v; $('#ftAuto').checked = !!v; ftRender(); },
+  edit: () => ftEdit(ftBlog()),
+  setEnd: (patch) => { const e = ftEdit(ftBlog()); Object.assign(e, patch || {}); ftEndSync(); ftRender(); },
 };
 
 /* ───────────────────────── 잠금 / 부팅 ───────────────────────── */

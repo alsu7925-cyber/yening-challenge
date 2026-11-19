@@ -88,6 +88,18 @@ main{max-width:1080px; margin:0 auto; padding:14px 14px 0}
 .switch input:checked + .sl{background:var(--rose)}
 .switch input:checked + .sl::after{left:21px}
 .tool-note{font-size:11.5px; color:var(--mute); margin:-4px 0 12px; line-height:1.5}
+.endrow{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 14px; padding-top:12px; border-top:1px dashed var(--line)}
+.endrow .ein{
+  font-family:inherit; font-size:12.5px; font-weight:600; color:#5A4A42;
+  background:var(--cream, #FBF6F2); border:1px solid #EADFD7; border-radius:10px;
+  padding:8px 10px; outline:none; min-width:0;
+}
+.endrow #ftGreet{flex:1 1 220px}
+.endrow .ein.area{flex:1 1 100%; resize:vertical; line-height:1.6; min-height:46px}
+.endrow .ein:focus{border-color:var(--rose); background:#fff}
+.endrow .ein:disabled{opacity:.5; cursor:not-allowed}
+.endrow .switch:has(input:disabled){opacity:.5; cursor:not-allowed}
+.end-note{flex:1 1 100%; margin:0; font-size:11px; color:var(--mute); font-weight:600; line-height:1.55}
 .tb-btns{display:flex; gap:6px; margin-left:auto; flex-wrap:wrap; justify-content:flex-end}
 .tb-btns .btn{white-space:nowrap}
 .seg{display:flex; gap:6px; background:#FBF5EF; border:1px solid var(--line); padding:4px; border-radius:13px; margin-bottom:8px}
@@ -242,7 +254,7 @@ details.helpbox li{margin-bottom:5px}
     <span>본문 15pt · 줄간격 1.9</span>
     <span>형광펜 <i class="sw" style="background:#FFF3B0"></i>#FFF3B0</span>
     <span>소제목 다크브라운 + 골드 라인</span>
-    <span>끝인사 자동 없음</span>
+    <span>첫인사·💛 찐찡맘 총평 자동</span>
   </div>
 
   <div class="card pad">
@@ -255,7 +267,15 @@ details.helpbox li{margin-bottom:5px}
         <button class="btn ghost sm" id="ftClear">비우기</button>
       </div>
     </div>
-    <p class="tool-note">빈 줄 정리 · 짧은 줄은 소제목 · 핵심 문장 한 줄 형광펜 · 끝인사 자동 없음</p>
+    <p class="tool-note">빈 줄 정리 · 짧은 줄은 소제목 · 핵심 문장 한 줄 형광펜 · 첫인사·마무리 총평 자동</p>
+
+    <div class="endrow">
+      <label class="switch"><input type="checkbox" id="ftGreetOn" checked><span class="sl"></span><span>첫인사</span></label>
+      <input class="ein" id="ftGreet" type="text" spellcheck="false" placeholder="첫인사 문구">
+      <label class="switch"><input type="checkbox" id="ftCloseOn" checked><span class="sl"></span><span>마무리 총평</span></label>
+      <textarea class="ein area" id="ftClose" rows="2" spellcheck="false" placeholder="마무리 문구 (줄바꿈으로 나눔)"></textarea>
+      <p class="end-note">첫인사는 인용구 훅 다음에, 마무리는 <b>회색 구분선 → 💛 찐찡맘 총평</b> 순서로 본문 끝에 들어갑니다. 문구는 여기서 고쳐 쓰면 기억해요.</p>
+    </div>
 
     <div class="split">
       <div class="col">
@@ -279,7 +299,7 @@ details.helpbox li{margin-bottom:5px}
       <button class="btn main block" id="ftCopy">📋 서식째 복사 (네이버 에디터용)</button>
       <button class="btn ghost" id="ftSelect">미리보기 전체 선택</button>
     </div>
-    <p class="tip">💡 <b>끝인사는 넣지 않아요</b> — 마무리는 직접 써 주세요. 붙여넣은 뒤 네이버 전용 인용구 박스만 필요하면 에디터에서 인용구 버튼을 한 번 눌러 주세요. (형광펜·굵기·소제목·구분선은 그대로 들어갑니다)</p>
+    <p class="tip">💡 <b>첫인사와 💛 찐찡맘 총평은 자동으로 들어가요</b> — 문구가 다르면 위 입력란에서 고치거나 토글로 끄면 됩니다. 구분선은 회색 1px 실선(#e0e0e0)으로 들어가고, 형광펜·굵기·소제목도 그대로 복사됩니다.</p>
   </div>
 
   <div class="card helpbox-wrap" style="padding:0">
@@ -457,16 +477,18 @@ async function copyRich(html, text) {
    ✨ 찐찡이네 서식 변환기
    ─ 형광펜 #FFF3B0 연노랑 · 소제목 다크브라운(#6B4A2F) + 골드 라인(#EBC07A)
    ─ 본문 15pt · 줄간격 1.9 · 문단 여백 16px · 빈 줄 정리
-   ─ 끝인사 자동 삽입 없음 (지시: "끝인사는 안넣어도되고")
+   ─ 첫인사(찐찡맘만 굵게) + 회색 구분선 + 💛 찐찡맘 총평 자동(문구는 화면 입력란에서 수정·토글)
    ══════════════════════════════════════════════════════════════ */
 const JJ = {
   name: '찐찡이네',
   hl: '#FFF3B0', boldColor: '#A9662F', boldSize: 0, accent: '#C97E3C',
   body: 15, sub: 17, subColor: '#6B4A2F', subBar: '#EBC07A', h1: 22,
   quote: { bg: '#FFFBF2', bar: '#F0D399', color: '#6B4A2F' },
-  hr: '#F0E4D2', th: '#FFF7DC', text: '#3B3330',
+  hr: '#F0E4D2', hrLine: '#e0e0e0', hrMargin: 24, th: '#FFF7DC', text: '#3B3330',
+  greet: '안녕하세요, **찐찡맘**이에요:)',
+  close: '💛 찐찡맘 총평\n오늘도 쭈니네 기록 보러 와주셔서 감사해요💛\n도움이 되셨다면 공감과 댓글 부탁드려요:)',
 };
-const FT = { auto: true, bound: false };
+const FT = { auto: true, bound: false, greetOn: true, greet: JJ.greet, closeOn: true, close: JJ.close };
 
 function ftSample() {
   return [
@@ -551,6 +573,13 @@ function ftParse(src) {
       }
       add({ t: 'ul', items }); continue;
     }
+    if (/^[✓✔☐•]\s*/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^[✓✔☐•]\s*/.test(lines[i].trim())) {
+        items.push(lines[i].trim()); i++;
+      }
+      add({ t: 'check', items }); continue;
+    }
     if (/^\d+[.)]\s+/.test(line)) {
       const items = [];
       while (i < lines.length && /^\d+[.)]\s+/.test(lines[i].trim())) {
@@ -626,7 +655,47 @@ function ftPickSentence(txt) {
   return pick || null;
 }
 
-/* 자동 서식: 소제목 승격 + 소제목마다 형광펜 한 문장 (끝인사 삽입 없음) */
+function ftBlockText(bk) {
+  if (!bk) return '';
+  if (bk.items) return bk.items.join(' ');
+  if (bk.rows) return bk.rows.map((r) => r.join(' ')).join(' ');
+  return bk.s || '';
+}
+
+/* 첫인사 — 인용구 훅(또는 제목) 다음에 한 번만 */
+const FT_GREET_RE = /(안녕하세요|찐찡맘)/;
+function ftAutoGreet(blocks) {
+  if (!FT.greetOn || !String(FT.greet || '').trim()) return blocks;
+  if (FT_GREET_RE.test(blocks.slice(0, 3).map(ftBlockText).join(' '))) return blocks;
+  let at = 0;
+  while (at < blocks.length && (blocks[at].t === 'h1' || blocks[at].t === 'q')) at++;
+  const out = blocks.slice();
+  out.splice(at, 0, { t: 'greet', s: String(FT.greet).trim() });
+  return out;
+}
+
+/* 마무리 — 회색 구분선 → 💛 찐찡맘 총평(소제목) → 본문 줄들 */
+const FT_CLOSING_RE = /(찐찡맘 총평|공감과 댓글)/;
+function ftClosingBlocks(text) {
+  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n').map((s) => s.trim()).filter(Boolean);
+  if (!lines.length) return [];
+  const out = [{ t: 'hr' }, { t: 'h2', s: lines[0] }];
+  for (let i = 1; i < lines.length; i++) out.push({ t: 'p', s: lines[i] });
+  return out;
+}
+function ftAutoClosing(blocks) {
+  const cb = FT.closeOn ? ftClosingBlocks(FT.close) : [];
+  if (!cb.length || !blocks.length) return blocks;
+  const tail = blocks.slice(-5).map(ftBlockText).join(' ');
+  if (FT_CLOSING_RE.test(tail)) return blocks;
+  const out = blocks.slice();
+  let at = out.length;
+  while (at > 0 && out[at - 1].t === 'p' && /^\s*(#[^\s#]+\s*)+$/.test(String(out[at - 1].s || ''))) at--;
+  out.splice(at, 0, ...cb);
+  return out;
+}
+
+/* 자동 서식: 소제목 승격 + 소제목마다 형광펜 한 문장 + 첫인사 + 회색 구분선·💛 찐찡맘 총평 */
 function ftAuto(blocks) {
   blocks = ftAutoHeads(blocks);
   let used = false;
@@ -658,8 +727,12 @@ function ftBlockHTML(bk, b) {
   if (bk.t === 'h2') return '<p style="font-size:' + b.sub + 'pt;font-weight:700;line-height:1.5;margin:30px 0 12px;color:' + b.subColor + ';word-break:keep-all;"><span style="border-left:4px solid ' + b.subBar + ';padding-left:10px;">' + ftInline(bk.s, b) + '</span></p>';
   if (bk.t === 'h3') return '<p style="font-size:' + Math.max(14, b.sub - 3) + 'pt;font-weight:700;line-height:1.55;margin:22px 0 10px;color:' + b.subColor + ';">' + ftInline(bk.s, b) + '</p>';
   if (bk.t === 'p') return '<p style="' + bodyP + '">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'greet') return '<p style="' + bodyP + '">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'check') {
+    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'pt;line-height:1.8;margin:0 0 ' + (i === bk.items.length - 1 ? 16 : 6) + 'px;color:' + tcol + ';">' + ftInline(it, b) + '</p>').join('');
+  }
   if (bk.t === 'q') return '<div style="background-color:' + b.quote.bg + ';border-left:4px solid ' + b.quote.bar + ';border-radius:8px;padding:16px 18px;margin:0 0 18px;"><p style="font-size:' + Math.max(13, b.body - 1) + 'pt;line-height:1.85;margin:0;color:' + b.quote.color + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p></div>';
-  if (bk.t === 'hr') return '<p style="border-top:1px solid ' + b.hr + ';margin:30px 0;font-size:1pt;line-height:1;">&nbsp;</p>';
+  if (bk.t === 'hr') return '<p style="border:none;border-top:1px solid ' + (b.hrLine || b.hr) + ';margin:' + (b.hrMargin || 30) + 'px 0;font-size:1pt;line-height:1;">&nbsp;</p>';
   if (bk.t === 'ul' || bk.t === 'ol') {
     return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'pt;line-height:1.8;margin:0 0 6px;padding-left:4px;color:' + tcol + ';">' + (bk.t === 'ul' ? '• ' : (i + 1) + '. ') + ftInline(it, b) + '</p>').join('');
   }
@@ -675,18 +748,29 @@ function ftBlockHTML(bk, b) {
 }
 function ftPlain(blocks) {
   const strip = (s) => String(s || '').replace(/==|\*\*/g, '').replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1 ($2)');
-  return blocks.map((bk) => {
-    if (bk.t === 'hr') return '──────────';
-    if (bk.t === 'ul') return bk.items.map((i) => '• ' + strip(i)).join('\n');
-    if (bk.t === 'ol') return bk.items.map((i, n) => (n + 1) + '. ' + strip(i)).join('\n');
-    if (bk.t === 'table') return bk.rows.map((r) => r.map(strip).join(' | ')).join('\n');
-    return strip(bk.s);
-  }).filter(Boolean).join('\n\n');
+  let out = '';
+  let prev = null;
+  blocks.forEach((bk) => {
+    let txt = '';
+    if (bk.t === 'hr') txt = '──────────';
+    else if (bk.t === 'check') txt = bk.items.map((i) => strip(i)).join('\n');
+    else if (bk.t === 'ul') txt = bk.items.map((i) => '• ' + strip(i)).join('\n');
+    else if (bk.t === 'ol') txt = bk.items.map((i, n) => (n + 1) + '. ' + strip(i)).join('\n');
+    else if (bk.t === 'table') txt = bk.rows.map((r) => r.map(strip).join(' | ')).join('\n');
+    else txt = strip(bk.s);
+    if (!txt) return;
+    // 출처 문장(~기준이에요.) 바로 밑 목록은 붙여 쓴다
+    const tight = out && prev && (bk.t === 'ul' || bk.t === 'ol' || bk.t === 'check') && (bk.gapBefore === false
+      || /(기준이에요|기준입니다|기준)\s*\.?\s*$/.test(String(prev.s || '')));
+    out += (out ? (tight ? '\n' : '\n\n') : '') + txt;
+    prev = bk;
+  });
+  return out;
 }
 function ftBuild() {
   const b = JJ;
   let blocks = ftParse($('#ftInput') ? $('#ftInput').value : '');
-  if (FT.auto) blocks = ftAuto(blocks);
+  if (FT.auto) blocks = ftAutoClosing(ftAutoGreet(ftAuto(blocks)));
   const html = blocks.length
     ? '<div style="color:' + b.text + ';word-break:keep-all;">' + blocks.map((bk) => ftBlockHTML(bk, b)).filter(Boolean).join('') + '</div>'
     : '';
@@ -708,18 +792,51 @@ function ftRender() {
   }
   $('#ftClear').classList.toggle('hidden', !src.trim());
 }
-/* 🧹 빈줄정리 — 빈 줄이 2줄 이상 겹친 곳만 1줄로 */
+/* 🧹 빈줄정리 — 실제 발행 글 규칙: 문단 사이 1줄 · 첫인사 뒤 1줄 · 목록은 앞 문장에 붙임 · 목록 끝 1줄 ·
+   형광펜 문장 뒤 1줄 · 구분선 앞뒤 1줄 (2줄 이상 연속 빈 줄 금지) */
+const FT_LI = /^(?:✓|✔|☐|·|•|[-*+]\s|\d+[.)]\s)/;
+const FT_GREET_LINE = /^(안녕하|반갑|어서\s*오세요|다들\s*안녕)/;
+function ftIsListLine(t) { return FT_LI.test(String(t || '').trim()); }
 function ftBlankClean(txt) {
-  return String(txt || '')
-    .replace(/\r\n?/g, '\n')
-    .replace(/[ \t]+$/gm, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/^\n+/, '')
-    .replace(/\n+$/, '');
+  const lines = String(txt || '').replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').split('\n');
+  const isBlank = (l) => !String(l).trim();
+  const a = [];
+  for (const ln of lines) {
+    if (isBlank(ln)) { if (!a.length || isBlank(a[a.length - 1])) continue; a.push(''); }
+    else a.push(ln);
+  }
+  const b = [];
+  for (let i = 0; i < a.length; i++) {
+    const ln = a[i];
+    if (isBlank(ln)) {
+      const nx = a.slice(i + 1).find((x) => !isBlank(x));
+      const pv = b.slice().reverse().find((x) => !isBlank(x));
+      if (nx && ftIsListLine(nx) && pv && !/^#{1,3}\s/.test(pv.trim()) && !FT_HR.test(pv.trim())) continue;
+      b.push(''); continue;
+    }
+    b.push(ln.trim());
+  }
+  const out = [];
+  for (let i = 0; i < b.length; i++) {
+    const ln = b[i];
+    if (!ln) { if (out.length && out[out.length - 1] !== '') out.push(''); continue; }
+    const isHr = FT_HR.test(ln);
+    if (isHr && out.length && out[out.length - 1] !== '') out.push('');
+    out.push(ln);
+    const next = b[i + 1];
+    const nextLi = next !== undefined && ftIsListLine(next);
+    const needAfter = (isHr && next !== undefined)
+      || (ftIsListLine(ln) && !nextLi && next !== undefined)
+      || (!ftIsListLine(ln) && ln.indexOf('==') >= 0 && next !== undefined && !nextLi && !FT_HR.test(next))
+      || (FT_GREET_LINE.test(ln) && next !== undefined);
+    if (needAfter && next !== '') out.push('');
+  }
+  while (out.length && out[out.length - 1] === '') out.pop();
+  return out.join('\n');
 }
 /* ↕ 빈줄넣기 — 소제목(## 또는 짧은 단독 줄) 앞뒤에 빈 줄이 없으면 넣어 줌 */
 function ftBlankAround(txt) {
-  const lines = String(txt || '').replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').split('\n');
+  const lines = ftBlankClean(txt).split('\n').map((l) => l.replace(/[ \t]+$/, ''));
   const isHead = (i) => {
     const cur = (lines[i] || '').trim();
     if (!cur) return false;
@@ -748,7 +865,16 @@ function ftBlankAround(txt) {
 
 function ftSave() {
   if (!FT.bound) return;
-  LS.set('draft', { text: $('#ftInput').value, auto: FT.auto });
+  LS.set('draft', { text: $('#ftInput').value, auto: FT.auto, greetOn: FT.greetOn, greet: FT.greet, closeOn: FT.closeOn, close: FT.close });
+}
+/* 입력란(첫인사·마무리)을 지금 값으로 채운다 */
+function ftEndSync() {
+  const go = $('#ftGreetOn'), gi = $('#ftGreet'), co = $('#ftCloseOn'), ci = $('#ftClose');
+  if (!go || !co) return;
+  go.checked = !!FT.greetOn;
+  co.checked = !!FT.closeOn;
+  gi.value = FT.greet || '';
+  ci.value = FT.close || '';
 }
 async function ftCopy() {
   const out = ftBuild();
@@ -763,8 +889,24 @@ function ftInit() {
   if (saved) {
     if (typeof saved.text === 'string') $('#ftInput').value = saved.text;
     FT.auto = saved.auto !== false;
+    if (typeof saved.greet === 'string') FT.greet = saved.greet;
+    if (typeof saved.close === 'string') FT.close = saved.close;
+    if (typeof saved.greetOn === 'boolean') FT.greetOn = saved.greetOn;
+    if (typeof saved.closeOn === 'boolean') FT.closeOn = saved.closeOn;
   }
   $('#ftAuto').checked = FT.auto;
+  ftEndSync();
+  let etimer = 0;
+  $('#ftGreetOn').addEventListener('change', (e) => { FT.greetOn = e.target.checked; ftRender(); ftSave(); });
+  $('#ftCloseOn').addEventListener('change', (e) => { FT.closeOn = e.target.checked; ftRender(); ftSave(); });
+  $('#ftGreet').addEventListener('input', (e) => {
+    FT.greet = e.target.value;
+    clearTimeout(etimer); etimer = setTimeout(() => { ftRender(); ftSave(); }, 180);
+  });
+  $('#ftClose').addEventListener('input', (e) => {
+    FT.close = e.target.value;
+    clearTimeout(etimer); etimer = setTimeout(() => { ftRender(); ftSave(); }, 180);
+  });
   let timer = 0;
   $('#ftInput').addEventListener('input', () => {
     clearTimeout(timer);
@@ -805,6 +947,8 @@ function ftInit() {
   };
   ftRender();
 }
+/* 테스트용 */
+window.__jj = { build: ftBuild, parse: ftParse, endSync: ftEndSync, ft: FT, config: JJ };
 /* ══════════════════════════════════════════════════════════════
    📸 찐찡이네 사진 배치기 (예닝 오피스 v2.6 로직을 브라우저로 이식)
    ─ 체험단 모드: 역할(외관·내부·메뉴판·메인·디테일) → 슬라이드 묶음 → 원고 자리
