@@ -2343,7 +2343,7 @@ function ftPickSentence(txt) {
   return pick || null;
 }
 
-/* 자동 서식: 핵심 문장 형광펜 + 기준일 문구 + 마무리 */
+/* 자동 서식: 쌩 텍스트 소제목 승격 + 핵심 문장 형광펜 + 기준일 문구 */
 function ftAuto(blocks, b) {
   blocks = ftAutoHeads(blocks);
   let used = false;
