@@ -5,6 +5,9 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+/* 🚨 고소·저작권 주의 대상(assets/blocklist.js) — 제목·원고·소재 어디든 같은 규칙으로 검사 */
+const ycScan = (t) => (window.ycBlockScan ? window.ycBlockScan(t) : []);
+const ycLabels = (h) => (window.ycBlockLabels ? window.ycBlockLabels(h) : '');
 const nfmt = (n) => (Number(n) || 0).toLocaleString('ko-KR');
 const won = (n) => '₩' + (Number(n) || 0).toLocaleString('ko-KR');
 const KST_OFF = 9 * 3600 * 1000;
@@ -1001,7 +1004,7 @@ function matData(tab) {
   const date = APP.ui.matDate;
   // 브라우저에서 직접 새로고침한 자료가 있으면 그쪽이 최신이다
   const live = (APP.state.liveMaterials || {})[tab];
-  if (live && (live.rows || []).length && (!date || live.date === date)) return live;
+  if (live && ((live.rows || []).length || (live.topics || []).length) && (!date || live.date === date)) return live;
   const cur = m.date || '';
   if (date && cur && date !== cur && hist[date]) return hist[date][tab] || null;
   return m[tab] || (hist[cur] ? (hist[cur][tab] || null) : null);
@@ -1072,10 +1075,17 @@ function matBody(tab, date) {
       const dl = r.delta == null ? '' : (r.delta > 0 ? `<span class="dl up">▲${r.delta}</span>` : r.delta < 0 ? `<span class="dl down">▼${-r.delta}</span>` : '<span class="dl" style="color:#B9A79E">–</span>');
       const key = 'kw:' + date + ':' + r.kw;
       const on = !!APP.state.picks[key];
-      return `<li><span class="r">${r.rank}</span>
-            <a class="kw" href="https://search.naver.com/search.naver?query=${encodeURIComponent(r.kw)}" target="_blank" rel="noopener">${esc(r.kw)}</a>
+      const blk = ycScan(r.kw);
+      const kwTxt = blk.length
+        ? `<span class="kw">${esc(r.kw)}</span>`
+        : `<a class="kw" href="https://search.naver.com/search.naver?query=${encodeURIComponent(r.kw)}" target="_blank" rel="noopener">${esc(r.kw)}</a>`;
+      const act = (blk.length && !on)
+        ? `<span class="blk-tag" title="${esc('사용 금지 — ' + ycLabels(blk))}">🚨 금지</span>`
+        : `<button class="tiny-btn" data-pick="${esc(key)}" data-copy="${esc(r.kw)}" style="${on ? 'background:var(--rose);color:#fff' : ''}">${on ? '해제' : '+'}</button>`;
+      return `<li class="${blk.length ? 'blocked' : ''}"><span class="r">${r.rank}</span>
+            ${kwTxt}
             <span class="vol">${nfmt(r.vol)}</span>${dl}
-            <button class="tiny-btn ${on ? '' : ''}" data-pick="${esc(key)}" data-copy="${esc(r.kw)}" style="${on ? 'background:var(--rose);color:#fff' : ''}">${on ? '쓸게요' : '+'}</button>
+            ${act}
           </li>`;
     }).join('')}</ol>
       </div>`).join('');
@@ -1089,19 +1099,34 @@ function matBody(tab, date) {
       ${rows.map((r, i) => {
     const key = esc(tab + ':' + date + ':' + (r.url || r.title));
     const on = !!APP.state.picks[key];
+    const blk = ycScan(r.title);
     const q = r.url && /^https?:/.test(r.url) ? r.url : 'https://search.naver.com/search.naver?query=' + encodeURIComponent(r.title);
     const meta = [];
     if (r.blog) meta.push(r.blog);
     if (r.views != null && r.blog) meta.push('조회 ' + nfmt(r.views));
     if (r.src) meta.push(r.src);
     if (r.at) meta.push(String(r.at).slice(5, 16).replace('T', ' '));
-    return `<div class="mat-item ${i < 3 ? 'top' : ''}">
+    const blkTag = blk.length
+      ? `<span class="blk-tag" title="${esc('사용 금지 — ' + ycLabels(blk))}">🚨 사용 금지</span>`
+      : '';
+    const act = (blk.length && !on)
+      ? `<button class="go blk-off" disabled title="${esc('🚨 고소·저작권 주의 대상 — ' + ycLabels(blk))}">🚨 금지</button>`
+      : `<button class="go ${on ? 'on' : ''}" data-pick="${key}" data-copy="${esc(r.title)}">${blk.length ? '해제' : (on ? '쓸게요 ✓' : '쓸게요')}</button>`;
+    return `<div class="mat-item ${i < 3 ? 'top' : ''}${blk.length ? ' blocked' : ''}">
+        <div class="n">${r.rank || i + 1}</div>
+        <div class="body">
+          <a class="t" href="${esc(q)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+          <div class="m">${blkTag}${meta.map((x) => `<span>${esc(x)}</span>`).join('')}</div>
+        </div>
+        ${act}
+      </div>`;
+    return `<div class="mat-item ${i < 3 ? 'top' : ''}${blk.length ? ' blocked' : ''}">
         <div class="n">${r.rank || i + 1}</div>
         <div class="body">
           <a class="t" href="${esc(q)}" target="_blank" rel="noopener">${esc(r.title)}</a>
           <div class="m">${meta.map((x) => `<span>${esc(x)}</span>`).join('')}</div>
         </div>
-        <button class="go ${on ? 'on' : ''}" data-pick="${key}" data-copy="${esc(r.title)}">${on ? '쓸게요 ✓' : '쓸게요'}</button>
+        ${act}
       </div>`;
   }).join('')}
     </div>`;
@@ -1157,6 +1182,9 @@ function scoreHomeTitle(raw) {
   const chars = tsChars(title);
   const len = chars.length;
   if (!title) return { ok: false };
+  /* 주의 대상이 들어 있으면 채점 자체를 막는다 */
+  const blocked = ycScan(title);
+  if (blocked.length) return { ok: false, blocked, title };
   const front = chars.slice(0, 13).join('');
   const head = chars.slice(0, 18).join('');
   const good = [];
@@ -1335,6 +1363,12 @@ function runScorer(rawTitle) {
   const box = node.querySelector('.sc-res');
   if (rawTitle != null) inp.value = rawTitle;
   const r = scoreHomeTitle(inp.value);
+  if (!r.ok && r.blocked && r.blocked.length) {
+    box.innerHTML = window.ycBlockBanner(r.blocked, {
+      note: '이 제목은 점수를 채점하지 않았어요. 대상 이름을 빼고 다시 써 주세요.',
+    });
+    return;
+  }
   if (!r.ok) {
     box.innerHTML = `<div class="sc-empty">제목을 먼저 넣어 주세요.</div>`;
     inp.focus();
@@ -2661,11 +2695,38 @@ function ftBuild() {
   return { html, text: ftPlain(blocks, b), blocks, blog: b };
 }
 
+/* 🚨 고소·저작권 주의 대상 검사 — 원고 본문 + 첫인사 + 마무리 끝인사 전부 */
+function ftBlockHits() {
+  const parts = [];
+  ['#ftInput', '#ftGreet', '#ftClose'].forEach((sel) => {
+    const el = $(sel);
+    if (el && el.value) parts.push(el.value);
+  });
+  return ycScan(parts.join('\n'));
+}
+
+function ftBlockPaint(hits) {
+  const box = $('#ftBlockWarn');
+  if (!box) return;
+  if (hits.length) {
+    box.innerHTML = window.ycBlockBanner(hits, {
+      note: '이대로 복사하면 원고에 그대로 들어갑니다. 대상 이름·문장을 빼고 다시 써 주세요. (복사 버튼을 누르면 한 번 더 확인합니다)',
+    });
+    box.classList.remove('hidden');
+  } else {
+    box.innerHTML = '';
+    box.classList.add('hidden');
+  }
+  const cp = $('#ftCopy');
+  if (cp) cp.classList.toggle('warn', hits.length > 0);
+}
+
 function ftRender() {
   if (!FT.bound) return;
   const b = ftBlog();
   const src = $('#ftInput').value;
   const out = ftBuild();
+  ftBlockPaint(ftBlockHits());
   const prev = $('#ftPreview');
   if (!src.trim()) {
     prev.innerHTML = '<div class="ft-empty">원고를 붙여넣으면 여기에 <b>' + esc(b.name) + '</b> 서식으로 바로 보여요.<br>샘플 버튼으로 한 번 확인해 보세요.</div>';
@@ -2709,6 +2770,12 @@ function ftCopyLegacy(html, text) {
 function ftCopy() {
   const out = ftBuild();
   if (!out.html) { toast('원고를 먼저 붙여넣어 주세요'); return; }
+  const hits = ftBlockHits();
+  if (hits.length) {
+    const go = window.confirm('🚨 고소·저작권 주의 대상이 원고에 있어요.\n· ' + ycLabels(hits) +
+      '\n\n이대로 복사할까요? (대상 이름·문장을 먼저 빼 주세요)');
+    if (!go) { toast('복사를 멈추었어요 · 주의 대상 문장을 빼 주세요'); return; }
+  }
   let p = null;
   // 1) 표준 Clipboard API — ClipboardItem 은 제스처 안에서 바로 만든다(iOS 사파리)
   if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
@@ -2806,6 +2873,16 @@ function ftSave() {
 }
 
 /* 테스트용 */
+window.__yc = {
+  scan: ycScan,
+  labels: ycLabels,
+  score: scoreHomeTitle,
+  runScorer: runScorer,
+  renderMaterials: renderMaterials,
+  state: () => APP.state,
+  ui: () => APP.ui,
+  ftBlockHits: ftBlockHits,
+};
 window.__ft = {
   presets: FT_BLOGS,
   build: ftBuild,
