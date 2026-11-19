@@ -24,6 +24,40 @@ function toast(msg) {
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 2200);
 }
 
+/* ───────────────────────── 클립보드 (모바일·구형 브라우저 대응) ───────────────────────── */
+function copyByTextarea(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '-9999px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* 클립보드에 넣기 — 성공 여부를 Promise<boolean>으로 돌려준다 */
+function copyText(text) {
+  const txt = String(text == null ? '' : text).trim();
+  if (!txt) return Promise.resolve(false);
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(txt).then(() => true, () => copyByTextarea(txt));
+    }
+  } catch (e) { /* 아래 textarea 방식 */ }
+  return Promise.resolve(copyByTextarea(txt));
+}
+
 /* ───────────────────────── 암호 (PIN) ───────────────────────── */
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -1035,7 +1069,7 @@ function matBody(tab, date) {
       return `<li><span class="r">${r.rank}</span>
             <a class="kw" href="https://search.naver.com/search.naver?query=${encodeURIComponent(r.kw)}" target="_blank" rel="noopener">${esc(r.kw)}</a>
             <span class="vol">${nfmt(r.vol)}</span>${dl}
-            <button class="tiny-btn ${on ? '' : ''}" data-pick="${esc(key)}" style="${on ? 'background:var(--rose);color:#fff' : ''}">${on ? '쓸게요' : '+'}</button>
+            <button class="tiny-btn ${on ? '' : ''}" data-pick="${esc(key)}" data-copy="${esc(r.kw)}" style="${on ? 'background:var(--rose);color:#fff' : ''}">${on ? '쓸게요' : '+'}</button>
           </li>`;
     }).join('')}</ol>
       </div>`).join('');
@@ -1061,7 +1095,7 @@ function matBody(tab, date) {
           <a class="t" href="${esc(q)}" target="_blank" rel="noopener">${esc(r.title)}</a>
           <div class="m">${meta.map((x) => `<span>${esc(x)}</span>`).join('')}</div>
         </div>
-        <button class="go ${on ? 'on' : ''}" data-pick="${key}">${on ? '쓸게요 ✓' : '쓸게요'}</button>
+        <button class="go ${on ? 'on' : ''}" data-pick="${key}" data-copy="${esc(r.title)}">${on ? '쓸게요 ✓' : '쓸게요'}</button>
       </div>`;
   }).join('')}
     </div>`;
@@ -1550,8 +1584,18 @@ function bindEvents() {
     const pick = t.closest('[data-pick]');
     if (pick) {
       const k = pick.dataset.pick;
-      APP.state.picks[k] = !APP.state.picks[k];
-      if (!APP.state.picks[k]) delete APP.state.picks[k];
+      const txt = pick.dataset.copy || '';
+      const what = k.indexOf('kw:') === 0 ? '키워드' : '제목';
+      if (APP.state.picks[k]) {
+        delete APP.state.picks[k];
+        toast('쓸게요 해제됐어요');
+      } else {
+        APP.state.picks[k] = true;
+        copyText(txt).then((ok) => {
+          if (!ok) toast(what + ' 복사는 브라우저가 막고 있어요 · 쓸게요만 체크했어요');
+        });
+        toast(what + ' 복사 + 쓸게요 체크됐어요!');
+      }
       saveLocal(); queuePush(); renderMaterials(); return;
     }
   });
