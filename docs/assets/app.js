@@ -196,6 +196,14 @@ function mergeStates(local, incoming, cfg) {
       if (e.posts) e.posts = e.posts.filter((p) => !rm[p.url]);
     }
   }
+  // 브라우저에서 새로고침한 실시간 소재 — 탭별로 더 최근 것만 남긴다
+  const lm = Object.assign({}, out.liveMaterials || {});
+  for (const [k, v] of Object.entries(l.liveMaterials || {})) {
+    const o = lm[k];
+    if (!o || String((v && v.collected_at) || '') >= String((o && o.collected_at) || '')) lm[k] = v;
+  }
+  out.liveMaterials = lm;
+
   // 오늘의 소재·키워드 자료는 배포본(빌드)을 따른다 — 매일 sync_challenge 로 갱신되는 값이라
   // 원격 스냅샷에 남은 옛 소재가 새 배포를 가리지 않게 한다.
   const cm = (C && C.materials) || null;
@@ -957,6 +965,9 @@ function matData(tab) {
   const m = APP.state.materials || {};
   const hist = APP.state.materials_history || {};
   const date = APP.ui.matDate;
+  // 브라우저에서 직접 새로고침한 자료가 있으면 그쪽이 최신이다
+  const live = (APP.state.liveMaterials || {})[tab];
+  if (live && (live.rows || []).length && (!date || live.date === date)) return live;
   const cur = m.date || '';
   if (date && cur && date !== cur && hist[date]) return hist[date][tab] || null;
   return m[tab] || (hist[cur] ? (hist[cur][tab] || null) : null);
@@ -1001,7 +1012,13 @@ function matBody(tab, date) {
   if (!d || !((d.rows || []).length || (d.topics || []).length)) {
     return `<div class="sec card"><div class="empty-note">이 날짜의 자료가 아직 없습니다.<br>동기화를 실행하면 채워집니다.</div></div>`;
   }
-  const note = d.source ? `<div class="sec mat-note">${esc(d.source)}${d.collected_at ? ' · 수집 ' + esc(d.collected_at.replace('T', ' ').slice(5, 16)) : ''}</div>` : '';
+  const canRefresh = !!LIVE_SOURCES[tab];
+  const noteTxt = (d.source ? esc(d.source) : '') +
+    (d.collected_at ? ' · 수집 ' + esc(d.collected_at.replace('T', ' ').slice(5, 16)) : '');
+  const note = (noteTxt || canRefresh)
+    ? `<div class="sec mat-note"><span class="mtxt">${noteTxt}</span>${canRefresh
+      ? `<button class="refresh-btn" data-refresh="${tab}">🔄 새로고침</button>` : ''}</div>`
+    : '';
 
   if (tab === 'keywords') {
     const topics = d.topics || [];
@@ -1048,6 +1065,117 @@ function matBody(tab, date) {
       </div>`;
   }).join('')}
     </div>`;
+}
+
+/* ───────────────────────── 오늘의 소재 · 실시간 새로고침 ─────────────────────────
+   정적 페이지라도 서버 수집 없이 최신 목록을 다시 받아올 수 있게 한다.
+   · 연예·방송 : 구글뉴스 RSS → rss2json(CORS 허용) 으로 20건
+   · 커뮤 베스트 : 네이트 실시간 관심 랭킹 → r.jina.ai(CORS 허용)로 읽어 제목·링크 추출
+   실패하면 구글뉴스 인기(RSS)로 대체하고, 무엇으로 받았는지 화면에 그대로 적는다. */
+const GN_RSS = 'https://news.google.com/rss/headlines/section/topic/';
+const LIVE_SOURCES = {
+  ent: { label: '연예 실시간', feeds: [GN_RSS + 'ENTERTAINMENT?hl=ko&gl=KR&ceid=KR:ko'],
+    source: 'Google 뉴스 연예 (브라우저 새로고침)' },
+  community: { label: '커뮤 베스트', nate: true,
+    source: '네이트 실시간 관심 랭킹 (브라우저 새로고침)' },
+  broadcast: { label: '방송·경기', feeds: [GN_RSS + 'SPORTS?hl=ko&gl=KR&ceid=KR:ko'],
+    source: 'Google 뉴스 스포츠 (브라우저 새로고침)', kind: '경기·스포츠' },
+};
+const kstStamp = () => new Date(Date.now() + KST_OFF).toISOString().slice(0, 16);
+
+async function fetchText(url, ms) {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms || 15000);
+  try {
+    const r = await fetch(url, { signal: c.signal, cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.text();
+  } finally { clearTimeout(t); }
+}
+
+async function rssRows(feed) {
+  const u = 'https://api.rss2json.com/v1/api.json?count=20&rss_url=' + encodeURIComponent(feed);
+  const txt = await fetchText(u, 15000);
+  let j = null;
+  try { j = JSON.parse(txt); } catch { throw new Error('RSS 응답 아님'); }
+  if (!j || j.status !== 'ok') throw new Error('RSS ' + ((j && j.status) || '실패'));
+  const rows = [];
+  for (const it of j.items || []) {
+    let title = String(it.title || '').replace(/\s+/g, ' ').trim();
+    let src = '';
+    const m = title.match(/^(.*)\s+-\s+([^-]{2,20})$/);
+    if (m) { title = m[1].trim(); src = m[2].trim(); }
+    if (!title) continue;
+    rows.push({ title, url: it.link || '', src,
+      at: String(it.pubDate || '').replace(' ', 'T').slice(0, 16) });
+    if (rows.length >= 20) break;
+  }
+  return rows;
+}
+
+async function nateRows() {
+  const txt = await fetchText('https://r.jina.ai/https://news.nate.com/rank/interest?sc=all', 20000);
+  const re = /\[([^\]]{6,200})\]\((https:\/\/news\.nate\.com\/view\/[^)\s]+)\)/g;
+  const rows = [], seen = new Set();
+  let m;
+  while ((m = re.exec(txt)) && rows.length < 20) {
+    const title = m[1].replace(/\s+/g, ' ').trim();
+    if (title.length < 8 || seen.has(title)) continue;
+    seen.add(title);
+    rows.push({ title, url: m[2], src: '네이트 랭킹', at: '' });
+  }
+  return rows;
+}
+
+function finishLive(tab, rows, source) {
+  const kind = LIVE_SOURCES[tab].kind;
+  const out = rows.slice(0, 20).map((r, i) => {
+    const o = Object.assign({ rank: i + 1 }, r);
+    if (kind) o.kind = kind;
+    return o;
+  });
+  return { date: kstDate(), collected_at: kstStamp(), source, rows: out };
+}
+
+async function buildLive(tab) {
+  const cfg = LIVE_SOURCES[tab];
+  const errs = [];
+  if (cfg.nate) {
+    try {
+      const rows = await nateRows();
+      if (rows.length >= 5) return finishLive(tab, rows, cfg.source);
+      errs.push('네이트 ' + rows.length + '건');
+    } catch (e) { errs.push('네이트 ' + (e.message || e)); }
+    try {
+      const rows = await rssRows('https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko');
+      if (rows.length) return finishLive(tab, rows, '대체 피드 · Google 뉴스 인기 (브라우저 새로고침)');
+    } catch (e) { errs.push('대체 ' + (e.message || e)); }
+  } else {
+    for (const feed of cfg.feeds || []) {
+      try {
+        const rows = await rssRows(feed);
+        if (rows.length) return finishLive(tab, rows, cfg.source);
+        errs.push('빈 목록');
+      } catch (e) { errs.push('RSS ' + (e.message || e)); }
+    }
+  }
+  throw new Error(errs.join(' / ') || '결과 없음');
+}
+
+async function refreshMat(tab, btn) {
+  const cfg = LIVE_SOURCES[tab];
+  if (!cfg) return;
+  if (btn) { btn.disabled = true; btn.dataset.busy = '1'; btn.textContent = '⏳ 불러오는 중…'; }
+  try {
+    const d = await buildLive(tab);
+    APP.state.liveMaterials = APP.state.liveMaterials || {};
+    APP.state.liveMaterials[tab] = d;
+    saveLocal(); queuePush(); renderAll();
+    toast(cfg.label + ' ' + d.rows.length + '건 새로 불러왔어요');
+  } catch (e) {
+    if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = '🔄 새로고침'; }
+    toast('새로고침 실패 · ' + String(e.message || e).slice(0, 40));
+  }
 }
 
 /* ───────────────────────── 시트 ───────────────────────── */
@@ -1346,6 +1474,13 @@ function bindEvents() {
 
     const mtab = t.closest('[data-mtab]');
     if (mtab) { APP.ui.matTab = mtab.dataset.mtab; renderMaterials(); return; }
+
+    const rf = t.closest('[data-refresh]');
+    if (rf) {
+      if (rf.dataset.busy) return;
+      refreshMat(rf.dataset.refresh, rf);
+      return;
+    }
 
     const md = t.closest('[data-mdate]');
     if (md) { /* 날짜 이동: 보관된 날짜로만 */ moveMatDate(Number(md.dataset.mdate)); return; }
