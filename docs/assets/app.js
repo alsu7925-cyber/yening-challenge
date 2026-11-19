@@ -3482,31 +3482,24 @@ function slBlurPhoto(ctx, im, W, H) {
 }
 
 function slDrawPhoto(ctx, W, H) {
-  const cfg = SL_BG[SL.bg] || SL_BG.red;
   slBlurPhoto(ctx, SL.img, W, H);
-  /* 붉으스름한 틴트 */
-  const g2 = ctx.createLinearGradient(0, 0, W, H);
-  g2.addColorStop(0, cfg.tint);
-  g2.addColorStop(1, 'rgba(14,3,6,.80)');
-  ctx.fillStyle = g2;
+  /* 원본 색감 유지 — 붉은 틴트 없이 아주 살짝만 어둡게 (하얀 ?가 보이도록) */
+  ctx.fillStyle = 'rgba(0,0,0,.14)';
   ctx.fillRect(0, 0, W, H);
-  /* 연기 질감 + 비네트 */
-  const rnd = slRnd(7770031);
-  for (let i = 0; i < 26; i++) {
-    const x = W * rnd(), y = H * rnd(), r = W * (0.10 + rnd() * 0.26);
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, 'rgba(0,0,0,' + (0.06 + rnd() * 0.10).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-  }
-  const vg = ctx.createRadialGradient(W * 0.5, H * 0.45, W * 0.16, W * 0.5, H * 0.45, W * 0.85);
+  const cg = ctx.createRadialGradient(W * 0.5, H * 0.46, W * 0.06, W * 0.5, H * 0.46, W * 0.42);
+  cg.addColorStop(0, 'rgba(0,0,0,.30)');
+  cg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = cg;
+  ctx.fillRect(0, 0, W, H);
+  /* 가장자리만 살짝 비네트 */
+  const vg = ctx.createRadialGradient(W * 0.5, H * 0.5, W * 0.30, W * 0.5, H * 0.5, W * 0.80);
   vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,.80)');
+  vg.addColorStop(1, 'rgba(0,0,0,.45)');
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
   return { cx: W / 2, cy: H * 0.46, rh: H * 0.20, rw: W * 0.16 };
 }
+
 
 /* 가운데 큰 물음표 — 흰색 + 빨간 빛 번짐 (기울기·크기·폰트가 회차마다 조금씩 다르다) */
 function slGlyph(ctx, W, H, p, V) {
@@ -3523,8 +3516,8 @@ function slGlyph(ctx, W, H, p, V) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = font;
-  /* 빛 번짐 */
-  ctx.shadowColor = cfg.neon;
+  /* 빛 번짐 — 사진 모드는 색감을 건드리지 않도록 흰 빛으로 */
+  ctx.shadowColor = SL.mode === 'photo' ? 'rgba(255,255,255,.95)' : cfg.neon;
   ctx.shadowBlur = W * 0.07 * (V.glyphGlowK || 1);
   ctx.fillStyle = '#FFFFFF';
   ctx.fillText(txt, 0, 0);
