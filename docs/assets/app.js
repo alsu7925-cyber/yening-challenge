@@ -3193,19 +3193,32 @@ document.addEventListener('DOMContentLoaded', () => {
   boot();
 });
 
-/* ═════════════ 🎨 실루엣 썸네일 (2026-11-20 추가) ═════════════
+/* ═════════════ 🎨 실루엣 썸네일 (2026-11-20 추가 · 같은 날 보강) ═════════════
    외부 API·사진 없이 브라우저 Canvas로만 그린다.
-   붉으스름한 배경 + 인물 실루엣 + 큰 물음표 → 사진을 못 쓰는 글(고소·저작권 주의)의 대표 썸네일용. */
+   붉으스름한 배경 + 큼직한 인물 실루엣(머리가 화면 절반 이상) + 얼굴을 채우는 큰 기호
+   → 사진을 못 쓰는 글(고소·저작권 주의)의 대표 썸네일용.
+   보강: 기호 크기·위치 슬라이더 + 미리보기 드래그 · 기호 색(화이트/블랙) ·
+         사진 블러 강도 · ⚔️ VS 2장 콜라주(사진 2장 / 실루엣 2명) */
 const SL = {
   kind: LS.get('yc.sl.kind', 'male'),
   bg: LS.get('yc.sl.bg', 'red'),
   glyph: LS.get('yc.sl.glyph', '?'),
+  ink: LS.get('yc.sl.ink', 'white'),
   ratio: LS.get('yc.sl.ratio', '1:1'),
   caption: LS.get('yc.sl.caption', ''),
-  mode: 'silhouette',      // 'silhouette' | 'photo'(내 사진 블러)
+  size: Number(LS.get('yc.sl.size', 100)) || 100,     // 기호 크기 %
+  ox: Number(LS.get('yc.sl.ox', 0)) || 0,             // 가로 위치 % (캔버스 폭 기준)
+  oy: Number(LS.get('yc.sl.oy', 0)) || 0,             // 세로 위치 %
+  blur: Number(LS.get('yc.sl.blur', 35)) || 0,        // 사진 블러 강도 %
+  split: LS.get('yc.sl.split', 'straight'),           // 'straight' | 'diagonal'
+  vsLeftKind: LS.get('yc.sl.vsLeftKind', 'male'),
+  vsRightKind: LS.get('yc.sl.vsRightKind', 'female'),
+  mode: 'silhouette',      // 'silhouette' | 'photo'(내 사진 블러) | 'vs'(⚔️ 2장 콜라주)
   seed: 0,                 // 생성할 때마다 새로 뽑는다(유사 이미지 방지)
   img: null,
   imgName: '',
+  vsL: null, vsLName: '',
+  vsR: null, vsRName: '',
   bound: false,
 };
 
@@ -3225,14 +3238,20 @@ const SL_BG = {
     froms: ['#3B2068', '#301A55', '#452A78', '#291647'] },
 };
 
+const SL_KIND = { male: '남자', female: '여자', player: '선수', random: '🎲 랜덤' };
+const SL_GLYPH = { '?': '?', '!': '!', 'VS': 'VS', none: '없음' };
+const SL_INK = { white: '화이트', black: '블랙' };
+const SL_SPLIT = { straight: '직선 분할', diagonal: '사선 분할' };
+const SL_FONT = '800 %s "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif';
+
 /* 생성 버튼을 누를 때마다 새 시드 — 픽셀·구성이 매번 조금씩 달라진다(네이버 유사 이미지 방지) */
 function slNewSeed() { SL.seed = Math.floor(Math.random() * 1e9) + 1; }
 
 /* 시드로 그 회차의 변주를 뽑는다 (같은 시드면 같은 그림) */
-function slVariant() {
-  const R = slRnd(SL.seed || 1);
+function slVariant(seed) {
+  const R = slRnd((seed != null ? seed : (SL.seed || 1)) || 1);
   const fonts = [
-    '800 %s "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif',
+    SL_FONT,
     '800 %s Georgia,"Times New Roman",serif',
     '900 %s "Arial Black",Impact,"Malgun Gothic",sans-serif',
     '800 %s "Courier New",monospace',
@@ -3244,11 +3263,11 @@ function slVariant() {
     smokeN: 44 + Math.floor(R() * 22),
     glowX: 0.5 + (R() - 0.5) * 0.14,
     glowY: 0.36 + (R() - 0.5) * 0.12,
-    scale: 0.965 + R() * 0.07,
-    offX: (R() - 0.5) * 0.045,
-    offY: (R() - 0.5) * 0.02,
-    glyphRot: (R() - 0.5) * 8,          // ±4도
-    glyphSizeK: 0.94 + R() * 0.12,      // ±6%
+    scale: 0.975 + R() * 0.05,
+    offX: (R() - 0.5) * 0.03,
+    offY: (R() - 0.5) * 0.016,
+    glyphRot: (R() - 0.5) * 5,          // ±2.5도
+    glyphSizeK: 0.97 + R() * 0.06,      // ±3%
     glyphGlowK: 0.75 + R() * 0.6,
     glyphFont: fonts[Math.floor(R() * fonts.length)],
     ringK: 0.85 + R() * 0.3,
@@ -3261,14 +3280,12 @@ let SL_V = null;
 function slKindNow(V) {
   return SL.kind === 'random' ? (V ? V.kind : 'male') : SL.kind;
 }
-const SL_KIND = { male: '남자', female: '여자', player: '선수', random: '🎲 랜덤' };
-const SL_GLYPH = { '?': '?', '!': '!', 'VS': 'VS', none: '없음' };
 
 function slSize() { return SL.ratio === '16:9' ? [1600, 900] : [1000, 1000]; }
 
 /* 둥근 사각형 경로 (구형 브라우저에도 안전하게 직접 그림) */
 function slRR(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, w / 2, h / 2);
+  const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
   ctx.beginPath();
   ctx.moveTo(x + rr, y);
   ctx.lineTo(x + w - rr, y);
@@ -3305,18 +3322,19 @@ function slRnd(seed) {
 /* 배경 — 중앙 딥레드 + 연기 질감 + 입자 + 비네트 */
 function slBackground(ctx, W, H, cfg, V) {
   V = V || slVariant();
+  const S = Math.min(W, H);
   ctx.fillStyle = cfg.to;
   ctx.fillRect(0, 0, W, H);
 
-  const rg = ctx.createRadialGradient(W * V.glowX, H * (V.glowY - 0.04), W * 0.02, W * V.glowX, H * (V.glowY + 0.04), W * (0.70 + V.ringK * 0.03));
+  const rg = ctx.createRadialGradient(W * V.glowX, H * (V.glowY - 0.04), S * 0.02, W * V.glowX, H * (V.glowY + 0.04), S * (0.80 + V.ringK * 0.05));
   rg.addColorStop(0, cfg.hot);
-  rg.addColorStop(0.34, cfg.from);
+  rg.addColorStop(0.42, cfg.from);
   rg.addColorStop(1, cfg.to);
   ctx.fillStyle = rg;
   ctx.fillRect(0, 0, W, H);
 
   /* 머리 뒤 역광 */
-  const bk = ctx.createRadialGradient(W * V.glowX, H * V.glowY, W * 0.04, W * V.glowX, H * (V.glowY + 0.02), W * 0.40);
+  const bk = ctx.createRadialGradient(W * V.glowX, H * V.glowY, S * 0.04, W * V.glowX, H * (V.glowY + 0.02), S * 0.40);
   bk.addColorStop(0, slA(cfg.neon, 0.30));
   bk.addColorStop(0.55, slA(cfg.neon, 0.14));
   bk.addColorStop(1, 'rgba(0,0,0,0)');
@@ -3328,7 +3346,7 @@ function slBackground(ctx, W, H, cfg, V) {
   for (let i = 0; i < V.smokeN; i++) {
     const x = W * (0.08 + rnd() * 0.84);
     const y = H * (0.04 + rnd() * 0.80);
-    const r = W * (0.07 + rnd() * 0.32);
+    const r = S * (0.07 + rnd() * 0.32);
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
     const dark = rnd() < 0.30;
     const a = (dark ? 0.10 : 0.06) + rnd() * 0.10;
@@ -3348,49 +3366,54 @@ function slBackground(ctx, W, H, cfg, V) {
   }
 
   /* 바깥 비네트 */
-  const vg = ctx.createRadialGradient(W * 0.5, H * 0.44, W * 0.16, W * 0.5, H * 0.44, W * 0.86);
+  const vg = ctx.createRadialGradient(W * 0.5, H * 0.44, S * 0.16, W * 0.5, H * 0.44, S * 0.86);
   vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(0.55, 'rgba(0,0,0,.34)');
-  vg.addColorStop(1, 'rgba(0,0,0,.94)');
+  vg.addColorStop(0.55, 'rgba(0,0,0,.26)');
+  vg.addColorStop(1, 'rgba(0,0,0,.90)');
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
 }
 
-/* 정면 상반신 실루엣 — 머리카락·귀·목·어깨 라인을 살려서 */
-function slFigure(ctx, W, H) {
-  const cx = W / 2;
-  const rh = H * 0.205;          // 머리 세로 반지름
-  const rw = rh * 0.78;          // 머리 가로 반지름
-  const cy = H * 0.315;          // 머리 중심
-  const eff = slKindNow(SL_V);
+/* 정면 상반신 실루엣 — 머리통이 화면 세로의 60%쯤 되는 큼직한 클로즈업
+   (레퍼런스: 머리 위 여백 최소 · 어깨는 아래 25~30%만) */
+function slFigure(ctx, W, H, opt) {
+  opt = opt || {};
+  const S = opt.s || Math.min(W, H);
+  const cx = (opt.cx != null) ? opt.cx : W / 2;
+  const rh = S * (opt.headK || 0.30);        // 머리 세로 반지름
+  const rw = rh * (opt.headW || 1.04);       // 머리 가로 반지름
+  const cy = H * (opt.cyK || 0.385);         // 머리 중심
+  const eff = opt.kind || slKindNow(SL_V);
   const female = eff === 'female';
   const player = eff === 'player';
-  const neckW = rw * (female ? 0.44 : 0.52);
+  const neckW = rw * (female ? 0.40 : 0.46) * (opt.neckW || 1);
   const neckTop = cy + rh * 0.62;
-  const neckBot = cy + rh * 0.92;
-  const shoulderY = H * 0.585;
+  const neckBot = cy + rh * (opt.neckK || 1.22);
+  const capY = Math.max(neckBot + rh * 0.30, H * (opt.capHK || 0.68));   // 어깨 시작 (목 밑보다 반드시 아래)
+  const shoulderDrop = Math.max(H * 0.02, rh * 0.06);
 
   ctx.save();
   ctx.fillStyle = '#050505';
 
   /* 어깨 + 몸통 (화면 밖까지) */
-  /* 어깨: 목에서 바깥으로 완만하게 내려가 어깨 끝을 만들고, 팔은 화면 밖까지 */
-  const sw = W * 0.56;                                        // 몸통 폭(화면 밖까지)
-  const capX = W * (player ? 0.245 : female ? 0.185 : 0.215);  // 어깨 끝 x
-  const capY = H * (player ? 0.648 : female ? 0.664 : 0.656);
-  const outX = W * (player ? 0.48 : female ? 0.43 : 0.46);     // 어깨가 화면 밖으로 빠지는 x
-  const outY = H * (player ? 0.738 : female ? 0.756 : 0.744);
+  const sw = Math.max(W * 0.62, rw * 2.8);
+  const capX = Math.max(W * (opt.capF || 0.30), rw * 1.00);   // 어깨 끝 x
+  const outX = W * 0.60;                              // 어깨가 화면 밖으로 빠지는 x
+  const outY = capY + Math.max(H * 0.02, (H - capY) * (opt.outK || 0.34));
+  const p1y = shoulderDrop * (opt.p1y != null ? opt.p1y : 0.7);
+  const p2x = neckW * (opt.p2x || 1.4);
+  const p2y = rh * (opt.p2y || 0);
   ctx.beginPath();
-  ctx.moveTo(cx - sw - W * 0.06, H * 1.04);
+  ctx.moveTo(cx - sw - W * 0.06, H * 1.05);
   ctx.lineTo(cx - sw - W * 0.06, outY + H * 0.02);
-  ctx.quadraticCurveTo(cx - sw - W * 0.04, outY, cx - outX, outY);
-  ctx.bezierCurveTo(cx - outX * 0.62, outY - H * 0.006, cx - capX * 1.75, capY + H * 0.026, cx - capX, capY);
-  ctx.bezierCurveTo(cx - capX * 0.58, capY - H * 0.032, cx - neckW * 1.5, neckBot + H * 0.012, cx - neckW, neckBot);
+  ctx.quadraticCurveTo(cx - sw, outY, cx - outX, outY);
+  ctx.bezierCurveTo(cx - outX * 0.72, outY - shoulderDrop * 0.5, cx - capX * 1.25, capY + shoulderDrop * 0.6, cx - capX, capY);
+  ctx.bezierCurveTo(cx - capX * 0.8, capY - p1y, cx - p2x, neckBot + p2y, cx - neckW, neckBot);
   ctx.lineTo(cx + neckW, neckBot);
-  ctx.bezierCurveTo(cx + neckW * 1.5, neckBot + H * 0.012, cx + capX * 0.58, capY - H * 0.032, cx + capX, capY);
-  ctx.bezierCurveTo(cx + capX * 1.75, capY + H * 0.026, cx + outX * 0.62, outY - H * 0.006, cx + outX, outY);
-  ctx.quadraticCurveTo(cx + sw + W * 0.04, outY, cx + sw + W * 0.06, outY + H * 0.02);
-  ctx.lineTo(cx + sw + W * 0.06, H * 1.04);
+  ctx.bezierCurveTo(cx + p2x, neckBot + p2y, cx + capX * 0.8, capY - p1y, cx + capX, capY);
+  ctx.bezierCurveTo(cx + capX * 1.25, capY + shoulderDrop * 0.6, cx + outX * 0.72, outY - shoulderDrop * 0.5, cx + outX, outY);
+  ctx.quadraticCurveTo(cx + sw, outY, cx + sw + W * 0.06, outY + H * 0.02);
+  ctx.lineTo(cx + sw + W * 0.06, H * 1.05);
   ctx.closePath();
   ctx.fill();
 
@@ -3415,22 +3438,22 @@ function slFigure(ctx, W, H) {
   /* 귀 */
   [1, -1].forEach((s) => {
     ctx.beginPath();
-    ctx.ellipse(cx + s * rw * 0.98, cy + rh * 0.06, rw * 0.13, rh * 0.15, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + s * rw * 0.95, cy + rh * 0.12, rw * 0.09, rh * 0.11, 0, 0, Math.PI * 2);
     ctx.fill();
   });
 
   if (female) {
-    /* 긴 머리 — 정수리에서 어깨 위까지 */
+    /* 긴 머리 — 정수리에서 턱선 아래까지 */
     ctx.beginPath();
-    ctx.ellipse(cx, cy - rh * 0.04, rw * 1.10, rh * 1.04, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy - rh * 0.06, rw * 1.10, rh * 1.05, 0, 0, Math.PI * 2);
     ctx.fill();
     /* 턱선까지만 떨어지는 단발 (목이 보이게 짧게) */
-    slRR(ctx, cx - rw * 1.10, cy - rh * 0.05, rw * 0.42, rh * 0.72, rw * 0.21);
-    slRR(ctx, cx + rw * 0.68, cy - rh * 0.05, rw * 0.42, rh * 0.72, rw * 0.21);
+    slRR(ctx, cx - rw * 1.10, cy - rh * 0.10, rw * 0.44, rh * 0.86, rw * 0.22);
+    slRR(ctx, cx + rw * 0.66, cy - rh * 0.10, rw * 0.44, rh * 0.86, rw * 0.22);
   } else {
     /* 짧은 머리 — 정수리에 잔머리 결 */
     ctx.beginPath();
-    ctx.ellipse(cx, cy - rh * 0.07, rw * 1.04, rh * 0.99, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy - rh * 0.09, rw * 1.04, rh * 0.99, 0, 0, Math.PI * 2);
     ctx.fill();
     if (!player) {
       /* 물결치는 머리 결 — 원을 붙이지 않고 반지름을 흔들어 그린다 */
@@ -3440,11 +3463,11 @@ function slFigure(ctx, W, H) {
         const a = Math.PI * (1.0 + i / N);          // 위쪽 반원
         const wob = 1 + 0.032 * Math.sin(a * 7.5 + 0.6) + 0.016 * Math.sin(a * 17);
         const px = cx + Math.cos(a) * rw * wob;
-        const py = cy - rh * 0.02 + Math.sin(a) * rh * wob;
+        const py = cy - rh * 0.04 + Math.sin(a) * rh * wob;
         if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       }
-      ctx.lineTo(cx + rw * 1.02, cy + rh * 0.10);
-      ctx.lineTo(cx - rw * 1.02, cy + rh * 0.10);
+      ctx.lineTo(cx + rw * 1.02, cy + rh * 0.08);
+      ctx.lineTo(cx - rw * 1.02, cy + rh * 0.08);
       ctx.closePath();
       ctx.fill();
     }
@@ -3462,9 +3485,18 @@ function slFigure(ctx, W, H) {
   return { cx, cy, rh, rw };
 }
 
-/* 사진 블러(선택) — 캔버스만으로. filter 미지원 브라우저도 되도록 축소→확대 방식 */
-function slBlurPhoto(ctx, im, W, H) {
-  const k = Math.max(3, Math.round(W / 55));
+/* 사진을 캔버스에 꽉 차게(cover) */
+function slCover(ctx, im, x, y, w, h) {
+  const k = Math.max(w / im.width, h / im.height);
+  const dw = im.width * k, dh = im.height * k;
+  ctx.drawImage(im, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+
+/* 사진 블러(선택) — 캔버스만으로. filter 미지원 브라우저도 되도록 축소→확대 방식
+   강도 0 = 거의 원본 / 100 = 아주 흐리게 */
+function slBlurPhoto(ctx, im, W, H, strength) {
+  const b = Math.max(0, Math.min(100, strength == null ? SL.blur : strength)) / 100;
+  const k = Math.max(2, Math.round(2 + b * 26));
   const small = document.createElement('canvas');
   small.width = Math.max(2, Math.round(W / k));
   small.height = Math.max(2, Math.round(H / k));
@@ -3475,7 +3507,7 @@ function slBlurPhoto(ctx, im, W, H) {
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  try { ctx.filter = 'blur(' + Math.round(W * 0.012) + 'px)'; } catch (e) { /* 무시 */ }
+  if (b > 0.02) { try { ctx.filter = 'blur(' + Math.round(Math.min(W, H) * 0.012 * b) + 'px)'; } catch (e) { /* 무시 */ } }
   ctx.drawImage(small, 0, 0, W, H);
   ctx.filter = 'none';
   ctx.restore();
@@ -3486,51 +3518,241 @@ function slDrawPhoto(ctx, W, H) {
   /* 원본 색감 유지 — 붉은 틴트 없이 아주 살짝만 어둡게 (하얀 ?가 보이도록) */
   ctx.fillStyle = 'rgba(0,0,0,.14)';
   ctx.fillRect(0, 0, W, H);
-  const cg = ctx.createRadialGradient(W * 0.5, H * 0.46, W * 0.06, W * 0.5, H * 0.46, W * 0.42);
+  const cg = ctx.createRadialGradient(W * 0.5, H * 0.46, Math.min(W, H) * 0.06, W * 0.5, H * 0.46, Math.min(W, H) * 0.42);
   cg.addColorStop(0, 'rgba(0,0,0,.30)');
   cg.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = cg;
   ctx.fillRect(0, 0, W, H);
   /* 가장자리만 살짝 비네트 */
-  const vg = ctx.createRadialGradient(W * 0.5, H * 0.5, W * 0.30, W * 0.5, H * 0.5, W * 0.80);
+  const vg = ctx.createRadialGradient(W * 0.5, H * 0.5, Math.min(W, H) * 0.30, W * 0.5, H * 0.5, Math.min(W, H) * 0.80);
   vg.addColorStop(0, 'rgba(0,0,0,0)');
   vg.addColorStop(1, 'rgba(0,0,0,.45)');
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
-  return { cx: W / 2, cy: H * 0.46, rh: H * 0.20, rw: W * 0.16 };
+  return { cx: W / 2, cy: H * 0.46, rh: Math.min(W, H) * 0.20, rw: Math.min(W, H) * 0.16 };
 }
 
+/* 배경 + 실루엣(+네온 글로우) 한 벌 — 본 캔버스·VS 좌우 패널이 같이 쓴다 */
+let SL_MASK = null;
+function slPaintFigure(ctx, W, H, cfg, V, opt) {
+  slBackground(ctx, W, H, cfg, V);
+  SL_MASK = SL_MASK || document.createElement('canvas');
+  SL_MASK.width = W; SL_MASK.height = H;
+  const mctx = SL_MASK.getContext('2d');
+  mctx.clearRect(0, 0, W, H);
+  const p = slFigure(mctx, W, H, opt);
 
-/* 가운데 큰 물음표 — 흰색 + 빨간 빛 번짐 (기울기·크기·폰트가 회차마다 조금씩 다르다) */
+  const S = Math.min(W, H);
+  const ax = W / 2, ay = H * 0.58;
+  const put = (fn) => {
+    ctx.save();
+    ctx.translate(ax + W * V.offX, ay + H * V.offY);
+    ctx.scale(V.scale, V.scale);
+    ctx.translate(-ax, -ay);
+    fn();
+    ctx.restore();
+  };
+  const gk = (opt && opt.glow) || 1;
+  put(() => {
+    ctx.shadowColor = cfg.neon;
+    ctx.shadowBlur = S * 0.085 * V.ringK * gk; ctx.drawImage(SL_MASK, 0, 0);
+    ctx.shadowBlur = S * 0.045 * V.ringK * gk; ctx.drawImage(SL_MASK, 0, 0);
+    ctx.shadowBlur = S * 0.012; ctx.drawImage(SL_MASK, 0, 0);
+  });
+  put(() => ctx.drawImage(SL_MASK, 0, 0));
+  return p;
+}
+
+/* 기호 기본 크기 — 레퍼런스처럼 얼굴을 꽉 채우는 크기 (? 높이가 캔버스 세로의 60%쯤) */
+function slGlyphBase(W, H) {
+  const S = Math.min(W, H);
+  if (SL.glyph === 'VS') return S * 0.40;
+  if (SL.glyph === '!') return S * 0.94;
+  return S * 0.88;
+}
+
+/* 가운데 큰 기호 — 화이트(붉은 빛 번짐) / 블랙(흰 테두리 + 흰 번짐) */
 function slGlyph(ctx, W, H, p, V) {
   if (SL.glyph === 'none') return;
   V = V || slVariant();
   const cfg = SL_BG[SL.bg] || SL_BG.red;
   const txt = SL.glyph;
-  const fs = (txt === 'VS' ? W * 0.20 : W * 0.42) * (txt === 'VS' ? 1 : V.glyphSizeK);
-  const font = (V.glyphFont || '800 %s "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif').replace('%s', Math.round(fs) + 'px');
-  const gy = SL.mode === 'photo' ? p.cy : p.cy + p.rh * 0.28;
+  const fs = Math.max(12, slGlyphBase(W, H) * (SL.size / 100) * (V.glyphSizeK || 1));
+  const font = (V.glyphFont || SL_FONT).replace('%s', Math.round(fs) + 'px');
+  const cx = p.cx + W * (SL.ox / 100);
+  const gy = (SL.mode === 'photo' ? p.cy : p.cy + p.rh * 0.26) + H * (SL.oy / 100);
+  const S = Math.min(W, H);
   ctx.save();
-  ctx.translate(p.cx, gy);
+  ctx.translate(cx, gy);
   ctx.rotate((V.glyphRot || 0) * Math.PI / 180);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = font;
-  /* 빛 번짐 — 사진 모드는 색감을 건드리지 않도록 흰 빛으로 */
-  ctx.shadowColor = SL.mode === 'photo' ? 'rgba(255,255,255,.95)' : cfg.neon;
-  ctx.shadowBlur = W * 0.07 * (V.glyphGlowK || 1);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(txt, 0, 0);
-  ctx.fillText(txt, 0, 0);
-  /* 선명한 본체 */
-  ctx.shadowBlur = W * 0.012;
-  ctx.shadowColor = 'rgba(255,255,255,.85)';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(txt, 0, 0);
+
+  if (SL.ink === 'black') {
+    /* 블랙 — 밝은 사진 위에서도 읽히도록 흰 테두리 + 살짝 흰 번짐 */
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+    ctx.strokeStyle = 'rgba(255,255,255,.96)';
+    ctx.lineWidth = Math.max(3, fs * 0.055);
+    ctx.shadowColor = 'rgba(255,255,255,.85)';
+    ctx.shadowBlur = S * 0.035 * (V.glyphGlowK || 1);
+    ctx.strokeText(txt, 0, 0);
+    ctx.strokeText(txt, 0, 0);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#0A0A0A';
+    ctx.fillText(txt, 0, 0);
+  } else {
+    /* 화이트 — 붉은 네온 번짐 (사진 모드는 흰 빛으로) */
+    ctx.shadowColor = SL.mode === 'photo' ? 'rgba(255,255,255,.95)' : cfg.neon;
+    ctx.shadowBlur = S * 0.07 * (V.glyphGlowK || 1);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(txt, 0, 0);
+    ctx.fillText(txt, 0, 0);
+    /* 선명한 본체 */
+    ctx.shadowBlur = S * 0.012;
+    ctx.shadowColor = 'rgba(255,255,255,.85)';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(txt, 0, 0);
+  }
   ctx.restore();
 }
 
-let SL_MASK = null;
+/* ⚔️ VS 콜라주 — 한쪽 패널(사진 또는 실루엣)을 따로 그린다 */
+function slVSPanel(g, W, H, side, cfg, V) {
+  const im = side === 'L' ? SL.vsL : SL.vsR;
+  const kind = side === 'L' ? SL.vsLeftKind : SL.vsRightKind;
+  if (im) {
+    slCover(g, im, 0, 0, W, H);
+    /* 사진은 또렷하게 — 살짝만 어둡게 + 비네트로 좌우 대비를 살린다 */
+    g.fillStyle = 'rgba(0,0,0,.16)';
+    g.fillRect(0, 0, W, H);
+    const vg = g.createRadialGradient(W * 0.5, H * 0.5, Math.min(W, H) * 0.28, W * 0.5, H * 0.5, Math.min(W, H) * 0.86);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,.55)');
+    g.fillStyle = vg;
+    g.fillRect(0, 0, W, H);
+    return null;
+  }
+  return slPaintFigure(g, W, H, cfg, V, {
+    s: Math.min(W, H) * 1.02,
+    cyK: 0.32,
+    outK: 0.85,
+    neckK: 1.22,
+    capHK: 0.70,
+    capF: 0.29,
+    neckW: 0.9,
+    glow: 0.55,
+    kind: kind === 'random' ? V.kind : kind,
+  });
+}
+
+/* 가운데 VS 배지 — 붉은/다크 테마에 어울리는 원형 배지 */
+function slVSBadge(ctx, W, H, cfg) {
+  const S = Math.min(W, H);
+  const r = S * 0.125;
+  const dark = SL.ink !== 'black';
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+
+  /* 빛 번짐 */
+  ctx.shadowColor = dark ? cfg.neon : 'rgba(0,0,0,.55)';
+  ctx.shadowBlur = r * 1.1;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 1.14, 0, Math.PI * 2);
+  ctx.fillStyle = dark ? 'rgba(12,2,4,.94)' : 'rgba(255,250,247,.97)';
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  /* 안쪽 원 */
+  const gd = ctx.createRadialGradient(0, -r * 0.38, r * 0.08, 0, 0, r);
+  if (dark) {
+    gd.addColorStop(0, '#C4151B');
+    gd.addColorStop(0.55, '#7C0A10');
+    gd.addColorStop(1, '#2B0306');
+  } else {
+    gd.addColorStop(0, '#FFFFFF');
+    gd.addColorStop(1, '#F1E4E0');
+  }
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = gd;
+  ctx.fill();
+
+  /* 테두리 */
+  ctx.lineWidth = Math.max(2, r * 0.07);
+  ctx.strokeStyle = dark ? cfg.neon : '#7C0A10';
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 1.02, 0, Math.PI * 2);
+  ctx.stroke();
+
+  /* VS 글자 */
+  ctx.font = '900 ' + Math.round(r * 0.92) + 'px "Arial Black",Impact,"Malgun Gothic",system-ui,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (dark) {
+    ctx.shadowColor = 'rgba(255,60,50,.85)';
+    ctx.shadowBlur = r * 0.35;
+  }
+  ctx.fillStyle = dark ? '#FFFFFF' : '#0A0A0A';
+  ctx.fillText('VS', 0, r * 0.05);
+  ctx.restore();
+}
+
+/* ⚔️ VS 콜라주 본체 */
+function slDrawVS(ctx, W, H, cfg, V) {
+  const half = W / 2;
+  const skew = SL.split === 'diagonal' ? W * 0.045 : 0;
+  const pw = Math.ceil(half + skew * 2) + 2;
+
+  const cl = document.createElement('canvas'); cl.width = pw; cl.height = H;
+  slVSPanel(cl.getContext('2d'), pw, H, 'L', cfg, slVariant(SL.seed + 11));
+  const cr = document.createElement('canvas'); cr.width = pw; cr.height = H;
+  slVSPanel(cr.getContext('2d'), pw, H, 'R', cfg, slVariant(SL.seed + 7919));
+
+  /* 왼쪽 */
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(half - skew, 0);
+  ctx.lineTo(half + skew, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(cl, -skew, 0);
+  ctx.restore();
+
+  /* 오른쪽 */
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(half - skew, 0);
+  ctx.lineTo(W, 0);
+  ctx.lineTo(W, H);
+  ctx.lineTo(half + skew, H);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(cr, half - skew, 0);
+  ctx.restore();
+
+  /* 경계선 — 어두운 테두리 + 흰 선으로 또렷하게 */
+  const drawSeam = (width, color, blur) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(half - skew, 0);
+    ctx.lineTo(half + skew, H);
+    ctx.lineWidth = width;
+    ctx.strokeStyle = color;
+    ctx.shadowColor = blur ? 'rgba(0,0,0,.6)' : 'rgba(0,0,0,0)';
+    ctx.shadowBlur = blur ? Math.min(W, H) * 0.02 : 0;
+    ctx.stroke();
+    ctx.restore();
+  };
+  drawSeam(Math.max(7, W * 0.012), 'rgba(10,4,6,.55)', true);
+  drawSeam(Math.max(3, W * 0.005), 'rgba(255,255,255,.92)', false);
+
+  /* VS 배지 */
+  slVSBadge(ctx, W, H, cfg);
+}
 
 function slDraw() {
   const cv = $('#slCanvas');
@@ -3546,61 +3768,96 @@ function slDraw() {
   });
   let p;
 
-  if (SL.mode === 'photo' && SL.img) {
+  if (SL.mode === 'vs') {
+    slDrawVS(ctx, W, H, cfg, V);
+  } else if (SL.mode === 'photo' && SL.img) {
     p = slDrawPhoto(ctx, W, H);
+    slGlyph(ctx, W, H, p, V);
   } else {
-    slBackground(ctx, W, H, cfg, V);
-
-    /* 실루엣 — 미세 확대·좌우 오프셋 + 붉은 네온 글로우 + 검정 본체 */
-    SL_MASK = SL_MASK || document.createElement('canvas');
-    SL_MASK.width = W; SL_MASK.height = H;
-    const mctx = SL_MASK.getContext('2d');
-    mctx.clearRect(0, 0, W, H);
-    p = slFigure(mctx, W, H);
-
-    const ax = W / 2, ay = H * 0.58;
-    ctx.save();
-    ctx.translate(ax + W * V.offX, ay + H * V.offY);
-    ctx.scale(V.scale, V.scale);
-    ctx.translate(-ax, -ay);
-    ctx.shadowColor = cfg.neon;
-    ctx.shadowBlur = W * 0.085 * V.ringK;
-    ctx.drawImage(SL_MASK, 0, 0);
-    ctx.shadowBlur = W * 0.045 * V.ringK;
-    ctx.drawImage(SL_MASK, 0, 0);
-    ctx.shadowBlur = W * 0.012;
-    ctx.drawImage(SL_MASK, 0, 0);
-    ctx.restore();
-    ctx.save();
-    ctx.translate(ax + W * V.offX, ay + H * V.offY);
-    ctx.scale(V.scale, V.scale);
-    ctx.translate(-ax, -ay);
-    ctx.drawImage(SL_MASK, 0, 0);
-    ctx.restore();
+    p = slPaintFigure(ctx, W, H, cfg, V);
+    slGlyph(ctx, W, H, p, V);
   }
 
-  slGlyph(ctx, W, H, p, V);
-
   /* 하단 문구 */
-  if (SL.caption && SL.caption.trim()) {
+  if (SL.caption && String(SL.caption).trim()) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    const fs = W * 0.045;
+    const S = Math.min(W, H);
+    const fs = S * 0.045;
     ctx.font = '800 ' + Math.round(fs) + 'px "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif';
     ctx.shadowColor = 'rgba(0,0,0,.7)';
-    ctx.shadowBlur = W * 0.014;
+    ctx.shadowBlur = S * 0.014;
     ctx.fillStyle = 'rgba(255,248,244,.96)';
-    ctx.fillText(SL.caption.trim().slice(0, 34), W / 2, H - fs * 0.85);
+    ctx.fillText(String(SL.caption).trim().slice(0, 34), W / 2, H - fs * 0.85);
     ctx.restore();
   }
+
   const meta = $('#slMeta');
   if (meta) {
-    meta.textContent = W + ' × ' + H + ' · ' +
-      (SL.mode === 'photo' && SL.img ? '내 사진 블러 모드' : (base.name) + ' · ' + SL_KIND[slKindNow(V)] + ' 실루엣') +
-      ' · 고유 시드 ' + String(SL.seed).slice(-4);
+    let what;
+    if (SL.mode === 'vs') {
+      const d = (side) => {
+        const im = side === 'L' ? SL.vsL : SL.vsR;
+        if (im) return '사진';
+        return '실루엣(' + SL_KIND[side === 'L' ? SL.vsLeftKind : SL.vsRightKind].replace('🎲 ', '') + ')';
+      };
+      what = '⚔️ VS 콜라주 · 왼쪽 ' + d('L') + ' vs 오른쪽 ' + d('R');
+    } else if (SL.mode === 'photo' && SL.img) {
+      what = '내 사진 블러 모드';
+    } else {
+      what = base.name + ' · ' + SL_KIND[slKindNow(V)] + ' 실루엣';
+    }
+    meta.textContent = W + ' × ' + H + ' · ' + what + ' · 고유 시드 ' + String(SL.seed).slice(-4);
   }
+  slSyncUI();
   slPhotoPaint();
+}
+
+/* ── 화면 상태 반영 ── */
+function slSyncUI() {
+  const root = $('#view-silhouette');
+  if (!root) return;
+  const vs = SL.mode === 'vs';
+  const ph = SL.mode === 'photo' && !!SL.img;
+  const show = (sel, on) => { const el = $(sel, root); if (el) el.classList.toggle('hidden', !on); };
+
+  show('#slGlyphBox', !vs);
+  show('#slPhotoRow', !vs);
+  show('#slBlurRow', ph);
+  show('#slVsPanel', vs);
+  show('#slVsRow', !vs);
+  show('#slKindRowL', !SL.vsL);
+  show('#slKindRowR', !SL.vsR);
+  show('#slBack', ph);
+  show('#slThumbL', !!SL.vsL);
+  show('#slThumbR', !!SL.vsR);
+  const bL = $('#slBackL'), bR = $('#slBackR');
+  if (bL) { bL.classList.toggle('hidden', !SL.vsL); bL.textContent = '✕'; }
+  if (bR) { bR.classList.toggle('hidden', !SL.vsR); bR.textContent = '✕'; }
+  const nmL = $('#slNameL'), nmR = $('#slNameR');
+  if (nmL) nmL.textContent = SL.vsL ? (SL.vsLName || '사진').slice(0, 18) : '사진 없이 실루엣';
+  if (nmR) nmR.textContent = SL.vsR ? (SL.vsRName || '사진').slice(0, 18) : '사진 없이 실루엣';
+  const tL = $('#slThumbL'), tR = $('#slThumbR');
+  if (tL && SL.vsL) tL.src = SL.vsL.src || '';
+  if (tR && SL.vsR) tR.src = SL.vsR.src || '';
+
+  const setRange = (sel, val) => { const el = $(sel, root); if (el && el.value !== String(val)) el.value = val; };
+  setRange('#slSize', Math.round(SL.size));
+  setRange('#slOx', Math.round(SL.ox));
+  setRange('#slOy', Math.round(SL.oy));
+  setRange('#slBlur', Math.round(SL.blur));
+  const lbl = (sel, txt) => { const el = $(sel, root); if (el) el.textContent = txt; };
+  lbl('#slSizeV', Math.round(SL.size) + '%');
+  lbl('#slOxV', Math.round(SL.ox) + '%');
+  lbl('#slOyV', Math.round(SL.oy) + '%');
+  lbl('#slBlurV', Math.round(SL.blur) + '%');
+
+  $$('[data-sl]', root).forEach((b) => b.classList.toggle('on', String(SL[b.dataset.sl]) === b.dataset.v));
+  const mk = $('#slMake');
+  if (mk) mk.textContent = vs ? '⚔️ VS 콜라주 만들기' : '🎨 실루엣 이미지 만들기';
+  const cv = $('#slCanvas');
+  if (cv) cv.classList.toggle('nodrag', vs || SL.glyph === 'none');
 }
 
 function slPhotoPaint() {
@@ -3613,17 +3870,77 @@ function slPhotoPaint() {
   if (nm) nm.textContent = on && SL.imgName ? SL.imgName.slice(0, 24) : '';
 }
 
-function slLoadPhoto(file) {
+function slReadFile(file, cb) {
   if (!file) return;
   const url = URL.createObjectURL(file);
   const im = new Image();
-  im.onload = () => {
-    SL.img = im; SL.imgName = file.name || 'photo'; SL.mode = 'photo';
-    slDraw();
-    toast('사진에 블러 + 물음표를 얹었어요 · 직접 찍은 사진만 쓰세요');
-  };
+  im.onload = () => { cb(im, file); };
   im.onerror = () => toast('사진을 읽지 못했어요 · 다른 파일로 해보세요');
   im.src = url;
+}
+
+function slLoadPhoto(file) {
+  slReadFile(file, (im, f) => {
+    SL.img = im; SL.imgName = f.name || 'photo'; SL.mode = 'photo';
+    slDraw();
+    toast('사진에 블러 + 물음표를 얹었어요 · 직접 찍은 사진만 쓰세요');
+  });
+}
+
+function slLoadVsPhoto(side, file) {
+  slReadFile(file, (im, f) => {
+    if (side === 'L') { SL.vsL = im; SL.vsLName = f.name || 'left'; }
+    else { SL.vsR = im; SL.vsRName = f.name || 'right'; }
+    SL.mode = 'vs';
+    slDraw();
+    toast((side === 'L' ? '왼쪽' : '오른쪽') + ' 사진을 넣었어요 · VS 콜라주 미리보기 ⚔️');
+  });
+}
+
+/* 미리보기 캔버스 드래그 — 마우스·터치 모두 (X/Y 슬라이더와 연동) */
+function slBindDrag() {
+  const cv = $('#slCanvas');
+  if (!cv || cv._dragBound) return;
+  cv._dragBound = true;
+  let on = false, sx = 0, sy = 0, ox0 = 0, oy0 = 0, id = null, raf = 0;
+
+  const pos = (ev) => {
+    const r = cv.getBoundingClientRect();
+    return { x: (ev.clientX - r.left) * cv.width / Math.max(1, r.width),
+             y: (ev.clientY - r.top) * cv.height / Math.max(1, r.height) };
+  };
+  const down = (ev) => {
+    if (SL.mode === 'vs' || SL.glyph === 'none') return;
+    on = true; id = ev.pointerId;
+    const p = pos(ev);
+    sx = p.x; sy = p.y; ox0 = SL.ox; oy0 = SL.oy;
+    try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* 무시 */ }
+    cv.classList.add('dragging');
+    ev.preventDefault();
+  };
+  const move = (ev) => {
+    if (!on || (id != null && ev.pointerId !== id)) return;
+    const p = pos(ev);
+    SL.ox = Math.max(-50, Math.min(50, ox0 + (p.x - sx) * 100 / cv.width));
+    SL.oy = Math.max(-50, Math.min(50, oy0 + (p.y - sy) * 100 / cv.height));
+    LS.set('yc.sl.ox', Math.round(SL.ox * 10) / 10);
+    LS.set('yc.sl.oy', Math.round(SL.oy * 10) / 10);
+    slSyncUI();
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; slDraw(); });
+    ev.preventDefault();
+  };
+  const up = (ev) => {
+    if (!on) return;
+    on = false;
+    cv.classList.remove('dragging');
+    try { cv.releasePointerCapture(id != null ? id : ev.pointerId); } catch (e) { /* 무시 */ }
+    id = null;
+  };
+  cv.addEventListener('pointerdown', down);
+  cv.addEventListener('pointermove', move);
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+  cv.addEventListener('pointerleave', (ev) => { if (on && ev.buttons === 0) up(ev); });
 }
 
 function renderSilhouette() {
@@ -3635,7 +3952,7 @@ function renderSilhouette() {
           <div class="hero-top">
             <div class="avatar">🎨</div>
             <div><h2>실루엣 썸네일</h2>
-              <div class="hero-sub">사진을 못 쓰는 글(고소·저작권 주의)에 쓰는 대표 이미지 · 배경 + 인물 실루엣 + 큰 물음표 · 100% 브라우저에서 그림</div></div>
+              <div class="hero-sub">사진을 못 쓰는 글(고소·저작권 주의)에 쓰는 대표 이미지 · 배경 + 큼직한 인물 실루엣 + 큰 기호 · 100% 브라우저에서 그림</div></div>
           </div>
         </div>
       </div>
@@ -3658,23 +3975,93 @@ function renderSilhouette() {
                 ${Object.keys(SL_GLYPH).map((k) => `<button class="sl-chip${SL.glyph === k ? ' on' : ''}" data-sl="glyph" data-v="${k}">${esc(SL_GLYPH[k])}</button>`).join('')}
               </div>
             </div>
+            <div class="sl-row"><span class="sl-lb">글자 색</span>
+              <div class="sl-chips" data-slgroup="ink">
+                ${Object.keys(SL_INK).map((k) => `<button class="sl-chip${SL.ink === k ? ' on' : ''}" data-sl="ink" data-v="${k}"><i class="sl-inkdot ${k}"></i>${SL_INK[k]}</button>`).join('')}
+              </div>
+            </div>
             <div class="sl-row"><span class="sl-lb">비율</span>
               <div class="sl-chips" data-slgroup="ratio">
                 ${['1:1', '16:9'].map((k) => `<button class="sl-chip${SL.ratio === k ? ' on' : ''}" data-sl="ratio" data-v="${k}">${k === '1:1' ? '1:1 정사각 (1000×1000)' : '16:9 가로 (1600×900)'}</button>`).join('')}
               </div>
             </div>
+
+            <div class="sl-box" id="slGlyphBox">
+              <div class="sl-box-h">기호 크기·위치 <span class="sl-box-h2">미리보기를 끌어도 움직여요</span></div>
+              <div class="sl-row"><span class="sl-lb">크기</span>
+                <div class="sl-slide"><input type="range" id="slSize" min="50" max="200" step="1" value="${Math.round(SL.size)}"><span class="sl-val" id="slSizeV">${Math.round(SL.size)}%</span></div>
+              </div>
+              <div class="sl-row"><span class="sl-lb">가로 (X)</span>
+                <div class="sl-slide"><input type="range" id="slOx" min="-50" max="50" step="1" value="${Math.round(SL.ox)}"><span class="sl-val" id="slOxV">${Math.round(SL.ox)}%</span></div>
+              </div>
+              <div class="sl-row"><span class="sl-lb">세로 (Y)</span>
+                <div class="sl-slide"><input type="range" id="slOy" min="-50" max="50" step="1" value="${Math.round(SL.oy)}"><span class="sl-val" id="slOyV">${Math.round(SL.oy)}%</span></div>
+              </div>
+              <div class="sl-row tight"><span class="sl-lb"></span>
+                <div class="sl-chips"><button class="btn ghost sm" id="slReset">↺ 위치·크기 초기화</button></div>
+              </div>
+            </div>
+
             <div class="sl-row col"><span class="sl-lb">하단 문구 (선택)</span>
               <input id="slCaption" class="sc-input" type="text" maxlength="34" placeholder="예: 2026 KBO 이적 시장 정리" value="${esc(SL.caption)}">
             </div>
-            <div class="sl-row col"><span class="sl-lb">내 사진 (선택)</span>
+
+            <div class="sl-row col" id="slVsRow"><span class="sl-lb">⚔️ VS 콜라주</span>
+              <div class="sl-chips"><button class="btn ghost sm" id="slVsOn">⚔️ 사진 2장 VS 콜라주 만들기</button></div>
+              <p class="sl-help">왼쪽·오른쪽 사진을 넣으면 좌우 분할 콜라주, 사진이 없으면 실루엣 2명 대결로 만들어요.</p>
+            </div>
+
+            <div class="sl-box hidden" id="slVsPanel">
+              <div class="sl-box-h">⚔️ VS 콜라주 <span class="sl-box-h2">사진 2장 또는 실루엣 2명</span></div>
+              <div class="sl-row"><span class="sl-lb">분할</span>
+                <div class="sl-chips" data-slgroup="split">
+                  ${Object.keys(SL_SPLIT).map((k) => `<button class="sl-chip${SL.split === k ? ' on' : ''}" data-sl="split" data-v="${k}">${SL_SPLIT[k]}</button>`).join('')}
+                </div>
+              </div>
+              <div class="sl-row col"><span class="sl-lb">왼쪽</span>
+                <div class="sl-vsline">
+                  <img class="sl-thumb hidden" id="slThumbL" alt="">
+                  <button class="btn ghost sm" id="slPickL">📷 왼쪽 사진</button>
+                  <button class="btn ghost sm hidden" id="slBackL">✕</button>
+                  <span class="sl-ph" id="slNameL"></span>
+                </div>
+                <div class="sl-chips" data-slgroup="vsLeftKind" id="slKindRowL">
+                  ${['male', 'female', 'player'].map((k) => `<button class="sl-chip${SL.vsLeftKind === k ? ' on' : ''}" data-sl="vsLeftKind" data-v="${k}">${SL_KIND[k]}</button>`).join('')}
+                </div>
+              </div>
+              <div class="sl-row col"><span class="sl-lb">오른쪽</span>
+                <div class="sl-vsline">
+                  <img class="sl-thumb hidden" id="slThumbR" alt="">
+                  <button class="btn ghost sm" id="slPickR">📷 오른쪽 사진</button>
+                  <button class="btn ghost sm hidden" id="slBackR">✕</button>
+                  <span class="sl-ph" id="slNameR"></span>
+                </div>
+                <div class="sl-chips" data-slgroup="vsRightKind" id="slKindRowR">
+                  ${['male', 'female', 'player'].map((k) => `<button class="sl-chip${SL.vsRightKind === k ? ' on' : ''}" data-sl="vsRightKind" data-v="${k}">${SL_KIND[k]}</button>`).join('')}
+                </div>
+              </div>
+              <div class="sl-row tight"><span class="sl-lb"></span>
+                <div class="sl-chips"><button class="btn ghost sm" id="slVsOff">↩ 일반 썸네일로</button></div>
+              </div>
+              <input type="file" id="slVsInputL" accept="image/*" class="hidden">
+              <input type="file" id="slVsInputR" accept="image/*" class="hidden">
+            </div>
+
+            <div class="sl-row col" id="slPhotoRow"><span class="sl-lb">내 사진 (선택)</span>
               <div class="sl-photo">
-                <button class="btn ghost sm" id="slPick">📷 내 사진 올려서 블러+?</button>
+                <button class="btn ghost sm" id="slPick">📷 내 사진 올려서 블러+기호</button>
                 <button class="btn ghost sm hidden" id="slBack">↩ 실루엣으로</button>
                 <span class="sl-ph" id="slPhName"></span>
               </div>
-              <p class="sl-caution">※ TV조선·채널A 등 금지 방송 캡처는 블러해도 사용 금지예요. <b>직접 찍은 사진</b>만 올려 주세요.</p>
               <input type="file" id="slPhotoInput" accept="image/*" class="hidden">
             </div>
+
+            <div class="sl-row hidden" id="slBlurRow"><span class="sl-lb">블러 강도</span>
+              <div class="sl-slide"><input type="range" id="slBlur" min="0" max="100" step="1" value="${Math.round(SL.blur)}"><span class="sl-val" id="slBlurV">${Math.round(SL.blur)}%</span></div>
+            </div>
+
+            <p class="sl-caution">※ TV조선·채널A 등 금지 방송 캡처는 블러해도 사용 금지예요. <b>직접 찍은 사진</b>만 올려 주세요. VS 콜라주에 넣는 사진도 마찬가지예요.</p>
+
             <div class="sl-btns">
               <button class="btn" id="slMake">🎨 실루엣 이미지 만들기</button>
               <button class="btn ghost" id="slReroll">🎲 다른 느낌으로 다시 생성</button>
@@ -3690,39 +4077,77 @@ function renderSilhouette() {
         </div>
       </div>`;
     SL.bound = true;
-    $('#view-silhouette').addEventListener('click', (ev) => {
+
+    const root = $('#view-silhouette');
+    root.addEventListener('click', (ev) => {
       const chip = ev.target.closest('[data-sl]');
       if (chip) {
-        SL[chip.dataset.sl] = chip.dataset.v;
-        LS.set('yc.sl.' + chip.dataset.sl, chip.dataset.v);
-        $$('[data-sl="' + chip.dataset.sl + '"]', $('#view-silhouette')).forEach((b) => b.classList.toggle('on', b.dataset.v === chip.dataset.v));
+        const key = chip.dataset.sl, val = chip.dataset.v;
+        SL[key] = val;
+        LS.set('yc.sl.' + key, val);
+        if (key === 'glyph') {
+          if (val === 'VS') SL.mode = 'vs';
+          else if (SL.mode === 'vs') SL.mode = 'silhouette';
+        }
         slDraw();
         return;
       }
-      if (ev.target.closest('#slMake')) { slNewSeed(); slDraw(); toast('새 썸네일을 만들었어요 · 매번 다른 그림 🎨'); return; }
+      if (ev.target.closest('#slMake')) { slNewSeed(); slDraw(); toast(SL.mode === 'vs' ? '새 VS 콜라주를 만들었어요 · 매번 다른 그림 ⚔️' : '새 썸네일을 만들었어요 · 매번 다른 그림 🎨'); return; }
       if (ev.target.closest('#slReroll')) { slNewSeed(); slDraw(); toast('다른 느낌으로 다시 그렸어요 🎲'); return; }
       if (ev.target.closest('#slSave')) { slSave(); return; }
+      if (ev.target.closest('#slReset')) {
+        SL.size = 100; SL.ox = 0; SL.oy = 0;
+        LS.set('yc.sl.size', 100); LS.set('yc.sl.ox', 0); LS.set('yc.sl.oy', 0);
+        slDraw(); toast('기호 위치·크기를 처음 자리로 되돌렸어요 ↺');
+        return;
+      }
+      if (ev.target.closest('#slVsOn')) {
+        SL.mode = 'vs'; SL.glyph = 'VS'; LS.set('yc.sl.glyph', 'VS');
+        slDraw(); toast('⚔️ VS 콜라주 모드 — 왼쪽·오른쪽 사진을 넣어 보세요');
+        return;
+      }
+      if (ev.target.closest('#slVsOff')) {
+        SL.mode = 'silhouette';
+        if (SL.glyph === 'VS') { SL.glyph = '?'; LS.set('yc.sl.glyph', '?'); }
+        slDraw(); toast('일반 썸네일로 돌아왔어요');
+        return;
+      }
       if (ev.target.closest('#slPick')) { const f = $('#slPhotoInput'); if (f) f.click(); return; }
+      if (ev.target.closest('#slPickL')) { const f = $('#slVsInputL'); if (f) f.click(); return; }
+      if (ev.target.closest('#slPickR')) { const f = $('#slVsInputR'); if (f) f.click(); return; }
+      if (ev.target.closest('#slBackL')) { SL.vsL = null; SL.vsLName = ''; slDraw(); toast('왼쪽 사진을 뺐어요 · 실루엣으로 대신해요'); return; }
+      if (ev.target.closest('#slBackR')) { SL.vsR = null; SL.vsRName = ''; slDraw(); toast('오른쪽 사진을 뺐어요 · 실루엣으로 대신해요'); return; }
       if (ev.target.closest('#slBack')) {
         SL.mode = 'silhouette'; SL.img = null; SL.imgName = '';
         slDraw(); toast('실루엣 모드로 돌아왔어요');
         return;
       }
     });
+
+    root.addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (t.id === 'slCaption') {
+        SL.caption = t.value;
+        LS.set('yc.sl.caption', t.value);
+        clearTimeout(t._tt); t._tt = setTimeout(slDraw, 120);
+        return;
+      }
+      if (t.id === 'slSize') { SL.size = Number(t.value); LS.set('yc.sl.size', SL.size); slDraw(); return; }
+      if (t.id === 'slOx') { SL.ox = Number(t.value); LS.set('yc.sl.ox', SL.ox); slDraw(); return; }
+      if (t.id === 'slOy') { SL.oy = Number(t.value); LS.set('yc.sl.oy', SL.oy); slDraw(); return; }
+      if (t.id === 'slBlur') { SL.blur = Number(t.value); LS.set('yc.sl.blur', SL.blur); slDraw(); return; }
+    });
+
     const phIn = $('#slPhotoInput');
     if (phIn) phIn.addEventListener('change', () => { if (phIn.files && phIn.files[0]) slLoadPhoto(phIn.files[0]); });
-    const cap = $('#slCaption');
-    if (cap) {
-      let t = 0;
-      cap.addEventListener('input', () => {
-        SL.caption = cap.value;
-        LS.set('yc.sl.caption', cap.value);
-        clearTimeout(t); t = setTimeout(slDraw, 120);
-      });
-    }
+    const vl = $('#slVsInputL');
+    if (vl) vl.addEventListener('change', () => { if (vl.files && vl.files[0]) slLoadVsPhoto('L', vl.files[0]); });
+    const vr = $('#slVsInputR');
+    if (vr) vr.addEventListener('change', () => { if (vr.files && vr.files[0]) slLoadVsPhoto('R', vr.files[0]); });
   }
   $('#nav').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === 'silhouette'));
   slDraw();
+  slBindDrag();
 }
 
 function slSave() {
@@ -3731,7 +4156,7 @@ function slSave() {
   const d = new Date(Date.now() + 9 * 3600 * 1000);
   const stamp = d.toISOString().slice(0, 10).replace(/-/g, '') + '_' + d.toISOString().slice(11, 19).replace(/:/g, '');
   const rnd4 = Math.random().toString(36).slice(2, 6).toUpperCase();
-  const name = 'yeb_thumb_' + stamp + '_' + rnd4 + '.png';
+  const name = (SL.mode === 'vs' ? 'yeb_vs_' : 'yeb_thumb_') + stamp + '_' + rnd4 + '.png';
   cv.toBlob((blob) => {
     if (!blob) { toast('저장이 막혔어요 · 미리보기를 길게 눌러 저장해 주세요'); return; }
     const a = document.createElement('a');
@@ -3747,7 +4172,41 @@ function slSave() {
 /* 테스트용 */
 window.__sl = {
   state: SL, draw: slDraw, save: slSave, render: renderSilhouette, loadPhoto: slLoadPhoto,
-  reseed: slNewSeed, variant: slVariant,
+  loadVsPhoto: slLoadVsPhoto, reseed: slNewSeed, variant: slVariant, syncUI: slSyncUI,
   dataUrl: () => ($('#slCanvas') ? $('#slCanvas').toDataURL('image/png') : ''),
   size: slSize,
+  glyphBox: () => {
+    const cv = $('#slCanvas');
+    if (!cv) return null;
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let minx = 1e9, miny = 1e9, maxx = -1, maxy = -1;
+    for (let y = 0; y < cv.height; y++) {
+      for (let x = 0; x < cv.width; x++) {
+        const i = (y * cv.width + x) * 4;
+        if (d[i] > 235 && d[i + 1] > 225 && d[i + 2] > 218) {
+          if (x < minx) minx = x; if (x > maxx) maxx = x;
+          if (y < miny) miny = y; if (y > maxy) maxy = y;
+        }
+      }
+    }
+    if (maxx < 0) return null;
+    return { x: minx, y: miny, w: maxx - minx + 1, h: maxy - miny + 1, cx: (minx + maxx) / 2, cy: (miny + maxy) / 2 };
+  },
+  darkBox: () => {
+    const cv = $('#slCanvas');
+    if (!cv) return null;
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let minx = 1e9, miny = 1e9, maxx = -1, maxy = -1;
+    for (let y = 0; y < cv.height; y++) {
+      for (let x = 0; x < cv.width; x++) {
+        const i = (y * cv.width + x) * 4;
+        if (d[i] < 26 && d[i + 1] < 22 && d[i + 2] < 22) {
+          if (x < minx) minx = x; if (x > maxx) maxx = x;
+          if (y < miny) miny = y; if (y > maxy) maxy = y;
+        }
+      }
+    }
+    if (maxx < 0) return null;
+    return { x: minx, y: miny, w: maxx - minx + 1, h: maxy - miny + 1 };
+  },
 };
