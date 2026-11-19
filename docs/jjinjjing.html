@@ -1078,41 +1078,62 @@ function removePhoto(id) {
 
 /* ── 원고 → 블록 ───────────────────────────── */
 const PV_MARK = /^\[\s*(?:사진|photo|img|이미지)\s*(\d*)\s*\]$/i;
+/* 원고 → 블록. 빈 줄 위치를 기억해 '짧은 단독 줄 = 소제목'을 서식 변환기와 똑같이 잡습니다. */
 function parseManuscript(text) {
   const lines = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const out = [];
-  let buf = [];
-  const flush = () => {
-    if (buf.length) {
-      const t = buf.join('\n').trim();
-      if (t) out.push({ t: 'p', text: t });
-      buf = [];
-    }
+  let gap = true;
+  const push = (blk) => {
+    if (out.length) out[out.length - 1].gapAfter = gap;
+    blk.gapBefore = gap;
+    out.push(blk);
+    gap = false;
   };
   lines.forEach((raw) => {
     const st = raw.trim();
-    if (!st) { flush(); return; }
-    if (PV_MARK.test(st)) { flush(); out.push({ t: 'marker', text: '' }); return; }
+    if (!st) { gap = true; return; }
+    if (PV_MARK.test(st)) { push({ t: 'marker', text: '' }); return; }
     const mh = st.match(/^(#{1,4})\s+(.*)$/);
-    if (mh) { flush(); out.push({ t: 'h' + Math.min(3, mh[1].length), text: mh[2].trim() }); return; }
+    if (mh) { push({ t: 'h' + Math.min(3, mh[1].length), text: mh[2].trim() }); return; }
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(st) || (st.length >= 3 && /^[-=_\s]+$/.test(st))) {
-      flush(); out.push({ t: 'hr', text: '' }); return;
+      push({ t: 'hr', text: '' }); return;
     }
-    if (st.indexOf('>') === 0) { flush(); out.push({ t: 'q', text: st.replace(/^>\s?/, '').trim() }); return; }
+    if (st.indexOf('>') === 0) { push({ t: 'q', text: st.replace(/^>\s?/, '').trim() }); return; }
     if (/^[■▶◆●▷☞•]\s*/.test(st)) {
-      flush(); out.push({ t: 'h2', text: st.replace(/^[■▶◆●▷☞•]\s*/, '').trim() }); return;
+      push({ t: 'h2', text: st.replace(/^[■▶◆●▷☞•]\s*/, '').trim() }); return;
     }
-    if (/^[-*+]\s+/.test(st)) {
-      flush();
-      out.push({ t: 'li', text: st.replace(/^[-*+]\s+/, '').trim() });
-      return;
-    }
-    flush();
-    out.push({ t: 'p', text: st });
+    if (/^[-*+]\s+/.test(st)) { push({ t: 'li', text: st.replace(/^[-*+]\s+/, '').trim() }); return; }
+    push({ t: 'p', text: st });
   });
-  flush();
-  return out;
+  if (out.length) out[out.length - 1].gapAfter = true;
+  return promoteHeads(out);
 }
+/* 서식 변환기의 자동 소제목과 같은 규칙 — 앞뒤 빈 줄이 있는 짧은 줄은 소제목으로 */
+function promoteHeads(blocks) {
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.t !== 'p') continue;
+    const plain = String(b.text || '').trim();
+    if (!ftHeadText({ s: plain })) continue;
+    const next = blocks[i + 1];
+    const prev = blocks[i - 1];
+    const nextLen = next && next.t === 'p' ? (next.text || '').length : 0;
+    const prevLen = prev && prev.t === 'p' ? (prev.text || '').length : 0;
+    const before = b.gapBefore !== false;
+    const after = b.gapAfter !== false;
+    const alone = before && after;
+    const sentish = FT_SENT_END.test(plain.replace(/[?!~]+$/, ''));
+    let ok = false;
+    if (sentish) ok = alone && plain.length <= 22 && nextLen >= 30;
+    else if (/[?!]$/.test(plain)) ok = alone || nextLen >= 30;
+    else if (alone) ok = true;
+    else if ((before || after) && nextLen >= 20) ok = true;
+    else if (nextLen >= 30 && (prevLen >= 30 || i === 0)) ok = true;
+    if (ok) { b.t = 'h2'; b.text = plain; }
+  }
+  return blocks;
+}
+
 function sectionsOf(blocks) {
   const secs = [];
   let cur = { title: '도입', head: null, anchor: null, paras: [] };
