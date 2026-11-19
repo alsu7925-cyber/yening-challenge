@@ -882,7 +882,9 @@ function ftBlockText(bk) {
 const FT_GREET_RE = /(안녕하세요|찐찡맘)/;
 function ftAutoGreet(blocks) {
   if (!FT.greetOn || !String(FT.greet || '').trim()) return blocks;
-  if (FT_GREET_RE.test(blocks.slice(0, 3).map(ftBlockText).join(' '))) return blocks;
+  // 원고 앞부분(제목·인용구·사진 설명을 지나 첫 문단까지)에 이미 인사말이 있으면 또 넣지 않는다.
+  // 예전엔 앞 3블록만 봐서 인사말을 놓쳐 두 번 찍혔다(2026-11-20 지시).
+  if (FT_GREET_RE.test(blocks.slice(0, 12).map(ftBlockText).join(' '))) return blocks;
   let at = 0;
   while (at < blocks.length && (blocks[at].t === 'h1' || blocks[at].t === 'q')) at++;
   const out = blocks.slice();
@@ -902,7 +904,7 @@ function ftClosingBlocks(text) {
 function ftAutoClosing(blocks) {
   const cb = FT.closeOn ? ftClosingBlocks(FT.close) : [];
   if (!cb.length || !blocks.length) return blocks;
-  const tail = blocks.slice(-5).map(ftBlockText).join(' ');
+  const tail = blocks.slice(-10).map(ftBlockText).join(' ');
   if (FT_CLOSING_RE.test(tail)) return blocks;
   const out = blocks.slice();
   let at = out.length;
@@ -975,18 +977,39 @@ function ftPlain(blocks) {
     else if (bk.t === 'table') txt = bk.rows.map((r) => r.map(strip).join(' | ')).join('\n');
     else txt = strip(bk.s);
     if (!txt) return;
-    // 출처 문장(~기준이에요.) 바로 밑 목록은 붙여 쓴다
-    const tight = out && prev && (bk.t === 'ul' || bk.t === 'ol' || bk.t === 'check') && (bk.gapBefore === false
-      || /(기준이에요|기준입니다|기준)\s*\.?\s*$/.test(String(prev.s || '')));
+    // 원래 빈 줄이 없던 곳(gapBefore=false)은 빈 줄 없이 잇는다 — 복사본도 화면과 같이 나오게.
+    // 단, 소제목·구분선·첫인사는 앞뒤에 빈 줄 1줄을 둔다.
+    const blocky = (x) => x && (x.t === 'h1' || x.t === 'h2' || x.t === 'h3' || x.t === 'hr' || x.t === 'greet');
+    const tight = out && prev && (
+      (bk.gapBefore === false && !blocky(prev) && !blocky(bk))
+      // 출처 문장(~기준이에요.) 바로 밑 목록은 붙여 쓴다
+      || ((bk.t === 'ul' || bk.t === 'ol' || bk.t === 'check') && prev.t === 'p'
+        && /(기준이에요|기준입니다|기준)\s*\.?\s*$/.test(String(prev.s || ''))));
     out += (out ? (tight ? '\n' : '\n\n') : '') + txt;
     prev = bk;
   });
+  return out;
+}
+/* 빈 줄 없이 이어진 본문 줄(\n 한 번)은 한 문단으로 묶는다 — 줄마다 따로 문단으로 만들면
+   미리보기·복사본에 줄마다 빈 줄이 생긴다(2026-11-20 지시: 원래 줄바꿈은 붙여서). */
+function ftJoinLines(blocks) {
+  const out = [];
+  for (const bk of blocks) {
+    const pv = out[out.length - 1];
+    if (pv && pv.t === 'p' && bk.t === 'p' && bk.gapBefore === false) {
+      pv.s = String(pv.s || '') + '\n' + String(bk.s || '');
+      pv.gapAfter = bk.gapAfter;
+      continue;
+    }
+    out.push(Object.assign({}, bk));
+  }
   return out;
 }
 function ftBuild() {
   const b = JJ;
   let blocks = ftParse($('#ftInput') ? $('#ftInput').value : '');
   if (FT.auto) blocks = ftAutoClosing(ftAutoGreet(ftAuto(blocks)));
+  blocks = ftJoinLines(blocks);                                // 원래 붙여 쓴 줄은 한 문단(줄바꿈만)으로
   const html = blocks.length
     ? '<div style="color:' + b.text + ';word-break:keep-all;">' + blocks.map((bk) => ftBlockHTML(bk, b)).filter(Boolean).join('') + '</div>'
     : '';

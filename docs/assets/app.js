@@ -653,26 +653,26 @@ function renderHome() {
   `;
 }
 
-/* 지난 기록(리포트가 있는 날) — 챌린지 시작 전부터 쌓인 실제 수치 */
+/* 지난 기록(리포트가 있는 날) — 챌린지 시작 전 방문자 수만 보여 준다(수익 금액은 표시하지 않음) */
 function recentCard(round) {
   const s = APP.state;
   const days = Object.keys(s.entries || {}).filter((d) => d < round.start_date).sort().slice(-4);
   if (!days.length) return '';
   const rows = days.map((d) => {
-    let v = 0, r = 0, n = 0;
+    let v = 0, n = 0;
     for (const b of s.blogs) {
       const e = dayEntry(d, b.id);
       if (!e) continue;
-      v += Number(e.views || 0); r += Number(e.revenue || 0); n += (e.posts || []).length;
+      v += Number(e.views || 0); n += (e.posts || []).length;
     }
     return `<div class="drow"><div class="who"><div class="nm">${d.slice(5).replace('-', '.')} (${DOW[dowOf(d)]})</div>
-      <div class="mini">${n ? n + '편 · ' : ''}방문 ${nfmt(v)}</div></div>
-      <div class="money">${won(r)}</div></div>`;
+      ${n ? `<div class="mini">${n}편</div>` : ''}</div>
+      <div class="money">👥 ${nfmt(v)}</div></div>`;
   }).join('');
   return `<div class="sec card card-pad">
     <div class="sec-head"><h2>최근 기록</h2><span class="sub">예닝 오피스 리포트 · 챌린지 시작 전</span></div>
     ${rows}
-    <p style="font-size:11px;color:var(--muted);margin-top:8px">챌린지 1기 전에 쌓인 실제 방문자·수익입니다. 달력에는 기수 기간만 표시돼요.</p>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px">챌린지 1기 전에 쌓인 실제 방문자 기록입니다. 달력에는 기수 기간만 표시돼요.</p>
   </div>`;
 }
 
@@ -2747,7 +2747,9 @@ function ftBlockText(bk) {
 function ftAutoGreet(blocks, b) {
   const e = ftEdit(b);
   if (!e.greetOn || !String(e.greet || '').trim()) return blocks;   // 끄겠거나 첫인사가 없는 블로그는 넣지 않는다
-  if (FT_GREET_RE.test(blocks.slice(0, 3).map(ftBlockText).join(' '))) return blocks;  // 앞 3줄에 이미 있으면 그대로
+  // 원고 앞부분(제목·인용구를 지나 첫 문단까지)에 이미 인사말이 있으면 또 넣지 않는다.
+  // 예전엔 앞 3블록만 봐서, 제목·인용구·사진 설명 뒤에 온 인사말을 놓쳐 두 번 찍혔다(2026-11-20 지시).
+  if (FT_GREET_RE.test(blocks.slice(0, 12).map(ftBlockText).join(' '))) return blocks;
   let at = 0;
   while (at < blocks.length && (blocks[at].t === 'h1' || blocks[at].t === 'q')) at++;  // 제목·인용구 훅 다음
   const out = blocks.slice();
@@ -2776,7 +2778,7 @@ function ftAutoClosing(blocks, b) {
   if (!b.closingQuote || !e.closeOn || !blocks.length) return blocks;   // 나머지 블로그는 절대 넣지 않는다
   const cb = ftClosingBlocks(b, e.close);
   if (!cb.length) return blocks;
-  const tail = blocks.slice(-5).map(ftBlockText).join(' ');
+  const tail = blocks.slice(-10).map(ftBlockText).join(' ');          // 해시태그·사진 설명이 끼어도 놓치지 않게
   if (FT_CLOSING_RE.test(tail)) return blocks;                        // 이미 마무리가 있으면 그대로
   const out = blocks.slice();
   let at = out.length;
@@ -2868,9 +2870,14 @@ function ftPlain(blocks, b) {
     else if (bk.t === 'table') txt = bk.rows.map((r) => r.map(strip).join(' | ')).join('\n');
     else txt = strip(bk.s);
     if (!txt) return;
-    // 출처 문장(~기준이에요.) 바로 밑에 붙은 목록은 빈 줄 없이 잇는다(실제 발행 글 서식)
-    const tight = out && prev && ((bk.t === 'ul' || bk.t === 'ol' || bk.t === 'check') && (bk.gapBefore === false
-      || (prev.t === 'p' && /(기준이에요|기준입니다|기준)\s*\.?\s*$/.test(String(prev.s || ''))))
+    // 원래 빈 줄이 없던 곳(gapBefore=false)은 빈 줄 없이 잇는다 — 복사본도 화면과 같이 나오게.
+    // 단, 소제목·구분선·첫인사·안내문은 앞뒤에 빈 줄 1줄을 둔다.
+    const blocky = (x) => x && (x.t === 'h1' || x.t === 'h2' || x.t === 'h3' || x.t === 'hr' || x.t === 'greet' || x.t === 'note');
+    const tight = out && prev && (
+      (bk.gapBefore === false && !blocky(prev) && !blocky(bk))
+      // 출처 문장(~기준이에요.) 바로 밑에 붙은 목록은 빈 줄 없이 잇는다
+      || ((bk.t === 'ul' || bk.t === 'ol' || bk.t === 'check') && prev.t === 'p'
+        && /(기준이에요|기준입니다|기준)\s*\.?\s*$/.test(String(prev.s || '')))
       // 핵심정리·Q&A 소제목 다음은 빈 줄 없이(픽모아·세이브데스크·내몸데스크)
       || ((prev.t === 'h1' || prev.t === 'h2' || prev.t === 'h3') && b && ftTightHead(prev.s, b.id)));
     out += (out ? (tight ? '\n' : '\n\n') : '') + txt;
@@ -2879,11 +2886,28 @@ function ftPlain(blocks, b) {
   return out;
 }
 
+/* 빈 줄 없이 이어진 본문 줄(\n 한 번)은 한 문단으로 묶는다.
+   줄마다 따로 문단으로 만들면 미리보기·복사본에 줄마다 빈 줄이 생긴다(2026-11-20 지시: 원래 줄바꿈은 붙여서). */
+function ftJoinLines(blocks) {
+  const out = [];
+  for (const bk of blocks) {
+    const pv = out[out.length - 1];
+    if (pv && pv.t === 'p' && bk.t === 'p' && bk.gapBefore === false) {
+      pv.s = String(pv.s || '') + '\n' + String(bk.s || '');
+      pv.gapAfter = bk.gapAfter;
+      continue;
+    }
+    out.push(Object.assign({}, bk));
+  }
+  return out;
+}
+
 /* 미리보기 = 복사본과 같은 HTML */
 function ftBuild() {
   const b = ftBlog();
   let blocks = ftParse($('#ftInput') ? $('#ftInput').value : '');
   if (FT.auto) blocks = ftAuto(blocks, b);                     // 자동 정리 + 예지브러리 첫인사·마무리 끝인사
+  blocks = ftJoinLines(blocks);                                // 원래 붙여 쓴 줄은 한 문단(줄바꿈만)으로
   const html = blocks.length
     ? '<div style="color:' + (b.text || '#3B3330') + ';word-break:keep-all;">' + blocks.map((bk) => ftBlockHTML(bk, b)).filter(Boolean).join('') + '</div>'
     : '';
