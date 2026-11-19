@@ -1068,18 +1068,18 @@ function matBody(tab, date) {
 }
 
 /* ───────────────────────── 오늘의 소재 · 실시간 새로고침 ─────────────────────────
-   정적 페이지라도 서버 수집 없이 최신 목록을 다시 받아올 수 있게 한다.
-   · 연예·방송 : 구글뉴스 RSS → rss2json(CORS 허용) 으로 20건
-   · 커뮤 베스트 : 네이트 실시간 관심 랭킹 → r.jina.ai(CORS 허용)로 읽어 제목·링크 추출
-   실패하면 구글뉴스 인기(RSS)로 대체하고, 무엇으로 받았는지 화면에 그대로 적는다. */
+   정적 페이지(GitHub Pages)라도, 버튼을 누르면 브라우저가 직접 최신 목록을 다시 받아온다.
+   · 연예 실시간 : 네이버 엔터 실시간 랭킹  (r.jina.ai 경유 · CORS 허용)
+   · 커뮤 베스트 : 네이트 실시간 관심 랭킹  (r.jina.ai 경유)
+   · 방송·경기   : 네이버 스포츠 많이 본 뉴스(r.jina.ai 경유)
+   위 경로가 막히면 구글뉴스 RSS(rss2json 경유)로 대체하고,
+   어디서 받았는지 source 줄에 그대로 적는다. */
 const GN_RSS = 'https://news.google.com/rss/headlines/section/topic/';
+const JINA = 'https://r.jina.ai/';
 const LIVE_SOURCES = {
-  ent: { label: '연예 실시간', feeds: [GN_RSS + 'ENTERTAINMENT?hl=ko&gl=KR&ceid=KR:ko'],
-    source: 'Google 뉴스 연예 (브라우저 새로고침)' },
-  community: { label: '커뮤 베스트', nate: true,
-    source: '네이트 실시간 관심 랭킹 (브라우저 새로고침)' },
-  broadcast: { label: '방송·경기', feeds: [GN_RSS + 'SPORTS?hl=ko&gl=KR&ceid=KR:ko'],
-    source: 'Google 뉴스 스포츠 (브라우저 새로고침)', kind: '경기·스포츠' },
+  ent: { label: '연예 실시간', kind: '' },
+  community: { label: '커뮤 베스트', kind: '' },
+  broadcast: { label: '방송·경기', kind: '경기·스포츠' },
 };
 const kstStamp = () => new Date(Date.now() + KST_OFF).toISOString().slice(0, 16);
 
@@ -1093,6 +1093,65 @@ async function fetchText(url, ms) {
   } finally { clearTimeout(t); }
 }
 
+function jinaText(url) { return fetchText(JINA + url, 22000); }
+
+function mdClean(s) {
+  return String(s || '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[\u200b-\u200d\ufeff]/g, '')
+    .replace(/[\\`*_#|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/* 네이트 실시간 관심 랭킹 (마크다운 링크: [제목](https://news.nate.com/view/…)) */
+function nateRows(md) {
+  const re = /\[([^\[\]]{6,200})\]\((https:\/\/news\.nate\.com\/view\/[^)\s]+)\)/g;
+  const rows = [], seen = new Set();
+  let m;
+  while ((m = re.exec(md)) && rows.length < 20) {
+    const title = mdClean(m[1].replace(/\\/g, ''));
+    if (title.length < 8 || seen.has(title)) continue;
+    seen.add(title);
+    rows.push({ title, url: m[2], src: '네이트 랭킹', at: '' });
+  }
+  return rows;
+}
+
+/* 네이버 엔터 실시간 랭킹: 줄마다 [_N위_ ![img](…) _제목_ 요약] 형태 */
+function naverEntRows(md) {
+  const rows = [], seen = new Set();
+  for (const line of md.split('\n')) {
+    const m = line.match(/_(\d{1,2})위_\s*(?:!\[[^\]]*\]\([^)]*\))?\s*_([^_]{6,200})_/);
+    if (!m) continue;
+    const title = mdClean(m[2]);
+    if (title.length < 6 || seen.has(title)) continue;
+    seen.add(title);
+    const u = line.match(/\]\((https:\/\/m?\.?entertain\.naver\.com\/[^)\s]+)\)/);
+    rows.push({ title, url: u ? u[1] : '', src: '네이버 엔터 랭킹', at: '' });
+    if (rows.length >= 20) break;
+  }
+  return rows;
+}
+
+/* 네이버 스포츠 '많이 본 뉴스': [![img](…) 제목](https://m.sports.naver.com/<종목>/article/…) */
+function naverSportsRows(md) {
+  const re = /\[((?:[^\[\]]|\[[^\]]*\]){4,400})\]\((https:\/\/m\.sports\.naver\.com\/[^)\s]+)\)/g;
+  const rows = [], seen = new Set();
+  let m;
+  while ((m = re.exec(md)) && rows.length < 20) {
+    const url = m[2];
+    if (!/\/article\//.test(url)) continue;
+    const title = mdClean(m[1]).replace(/^\d{1,2}위\s*/, '');
+    if (title.length < 8 || seen.has(title)) continue;
+    seen.add(title);
+    rows.push({ title, url, src: '네이버 스포츠 랭킹', at: '' });
+  }
+  return rows;
+}
+
+/* 대체 피드: 구글뉴스 RSS → rss2json (CORS 허용, 캐시될 수 있음) */
 async function rssRows(feed) {
   const u = 'https://api.rss2json.com/v1/api.json?count=20&rss_url=' + encodeURIComponent(feed);
   const txt = await fetchText(u, 15000);
@@ -1106,26 +1165,33 @@ async function rssRows(feed) {
     const m = title.match(/^(.*)\s+-\s+([^-]{2,20})$/);
     if (m) { title = m[1].trim(); src = m[2].trim(); }
     if (!title) continue;
-    rows.push({ title, url: it.link || '', src,
-      at: String(it.pubDate || '').replace(' ', 'T').slice(0, 16) });
+    rows.push({ title, url: it.link || '', src, at: String(it.pubDate || '').replace(' ', 'T').slice(0, 16) });
     if (rows.length >= 20) break;
   }
   return rows;
 }
 
-async function nateRows() {
-  const txt = await fetchText('https://r.jina.ai/https://news.nate.com/rank/interest?sc=all', 20000);
-  const re = /\[([^\]]{6,200})\]\((https:\/\/news\.nate\.com\/view\/[^)\s]+)\)/g;
-  const rows = [], seen = new Set();
-  let m;
-  while ((m = re.exec(txt)) && rows.length < 20) {
-    const title = m[1].replace(/\s+/g, ' ').trim();
-    if (title.length < 8 || seen.has(title)) continue;
-    seen.add(title);
-    rows.push({ title, url: m[2], src: '네이트 랭킹', at: '' });
-  }
-  return rows;
-}
+/* 탭별 수집 순서 (앞에서 성공하면 그걸 쓴다) */
+const LIVE_PLANS = {
+  ent: [
+    async () => ({ rows: naverEntRows(await jinaText('https://entertain.naver.com/ranking')),
+      source: '네이버 엔터 실시간 랭킹 (브라우저 새로고침)' }),
+    async () => ({ rows: await rssRows(GN_RSS + 'ENTERTAINMENT?hl=ko&gl=KR&ceid=KR:ko'),
+      source: '대체 피드 · Google 뉴스 연예 (브라우저 새로고침)' }),
+  ],
+  community: [
+    async () => ({ rows: nateRows(await jinaText('https://news.nate.com/rank/interest?sc=all')),
+      source: '네이트 실시간 관심 랭킹 (브라우저 새로고침)' }),
+    async () => ({ rows: await rssRows('https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko'),
+      source: '대체 피드 · Google 뉴스 인기 (브라우저 새로고침)' }),
+  ],
+  broadcast: [
+    async () => ({ rows: naverSportsRows(await jinaText('https://m.sports.naver.com/index')),
+      source: '네이버 스포츠 많이 본 뉴스 (브라우저 새로고침)' }),
+    async () => ({ rows: await rssRows(GN_RSS + 'SPORTS?hl=ko&gl=KR&ceid=KR:ko'),
+      source: '대체 피드 · Google 뉴스 스포츠 (브라우저 새로고침)' }),
+  ],
+};
 
 function finishLive(tab, rows, source) {
   const kind = LIVE_SOURCES[tab].kind;
@@ -1138,26 +1204,13 @@ function finishLive(tab, rows, source) {
 }
 
 async function buildLive(tab) {
-  const cfg = LIVE_SOURCES[tab];
   const errs = [];
-  if (cfg.nate) {
+  for (const step of LIVE_PLANS[tab] || []) {
     try {
-      const rows = await nateRows();
-      if (rows.length >= 5) return finishLive(tab, rows, cfg.source);
-      errs.push('네이트 ' + rows.length + '건');
-    } catch (e) { errs.push('네이트 ' + (e.message || e)); }
-    try {
-      const rows = await rssRows('https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko');
-      if (rows.length) return finishLive(tab, rows, '대체 피드 · Google 뉴스 인기 (브라우저 새로고침)');
-    } catch (e) { errs.push('대체 ' + (e.message || e)); }
-  } else {
-    for (const feed of cfg.feeds || []) {
-      try {
-        const rows = await rssRows(feed);
-        if (rows.length) return finishLive(tab, rows, cfg.source);
-        errs.push('빈 목록');
-      } catch (e) { errs.push('RSS ' + (e.message || e)); }
-    }
+      const got = await step();
+      if (got && (got.rows || []).length) return finishLive(tab, got.rows, got.source);
+      errs.push('빈 목록');
+    } catch (e) { errs.push(String((e && e.message) || e).slice(0, 30)); }
   }
   throw new Error(errs.join(' / ') || '결과 없음');
 }
@@ -1174,7 +1227,7 @@ async function refreshMat(tab, btn) {
     toast(cfg.label + ' ' + d.rows.length + '건 새로 불러왔어요');
   } catch (e) {
     if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = '🔄 새로고침'; }
-    toast('새로고침 실패 · ' + String(e.message || e).slice(0, 40));
+    toast('새로고침 실패 · ' + String((e && e.message) || e).slice(0, 40));
   }
 }
 
