@@ -82,10 +82,10 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:var(--brown)}
   max-width:1120px;margin:0 auto;padding:10px 16px;
   display:flex;align-items:center;gap:14px;
 }
-.brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;white-space:nowrap}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;white-space:nowrap;flex:0 0 auto}
 .brand .trophy{font-size:18px}
 .brand small{display:none;font-weight:600;color:var(--muted);font-size:11.5px;letter-spacing:.01em}
-.nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;padding:2px}
+.nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1 1 auto;min-width:0;padding:2px}
 .nav::-webkit-scrollbar{display:none}
 .nav button{
   flex:0 0 auto;padding:8px 14px;border-radius:999px;
