@@ -1964,7 +1964,7 @@ const RSS_ROUTES = [
   { id: 'codetabs', kind: 'xml', ms: 13000, make: (u) => 'https://api.codetabs.com/v1/proxy?quest=' + u },
   { id: 'allorigins/raw', kind: 'xml', ms: 13000, make: (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u) },
 ];
-const RSS_CACHE_MS = 3 * 60 * 1000;          // 같은 블로그를 3분 안에 또 부르면 저장본을 쓴다(프록시 보호)
+const RSS_CACHE_MS = 10 * 60 * 1000;         // 프록시 4곳이 전부 막히면 최근 10분 저장본을 쓴다(마지막 안전망)
 const RSS_STAT = {};                          // 블로그별로 실제 성공한 경로 (진단용 · 화면엔 안 보임)
 
 /** 주소 정규화 — 같은 글을 다른 주소로 두 번 등록하지 않게 (쿼리·모바일 도메인 제거) */
@@ -2016,7 +2016,7 @@ function parseRssJson(j) {
   return out;
 }
 
-/** 블로그 한 곳의 최신 글 — 프록시 4단계 폴백 + 3분 저장본 */
+/** 블로그 한 곳의 최신 글 — 프록시 4단계 폴백 + (전부 실패하면) 최근 저장본 */
 function rssCacheGet(h) {
   try {
     const j = JSON.parse(localStorage.getItem('yc.rss.' + h) || 'null');
@@ -2028,12 +2028,8 @@ function rssCacheSet(h, rows) {
   try { localStorage.setItem('yc.rss.' + h, JSON.stringify({ at: Date.now(), rows: rows.slice(-60) })); } catch { /* 용량 초과는 무시 */ }
 }
 
-async function fetchBlogPosts(handle, opt) {
+async function fetchBlogPosts(handle) {
   const rss = 'https://rss.blog.naver.com/' + handle + '.xml';
-  if (!(opt && opt.fresh)) {
-    const hit = rssCacheGet(handle);
-    if (hit) { RSS_STAT[handle] = 'cache'; return hit; }
-  }
   const errs = [];
   for (const r of RSS_ROUTES) {
     try {
@@ -2046,6 +2042,9 @@ async function fetchBlogPosts(handle, opt) {
       errs.push(r.id + ' 빈 응답');
     } catch (e) { errs.push(r.id + ' ' + String((e && e.message) || e).slice(0, 20)); }
   }
+  // 마지막 안전망 — 10분 안에 성공한 저장본이 있으면 그걸 쓴다(방금 올린 글은 놓칠 수 있음)
+  const old = rssCacheGet(handle);
+  if (old) { RSS_STAT[handle] = '저장본(10분 내)'; return old; }
   throw new Error(errs.join(' / ') || '결과 없음');
 }
 
@@ -2081,7 +2080,7 @@ async function importTodayPosts(btn) {
     setBusy('⏳ ' + miss.length + '곳 다시 시도 중…');
     await sleep(600);
     for (const i of miss) {                                  // 재시도도 한 곳씩(간격 200ms)
-      try { got[i] = { status: 'fulfilled', value: await fetchBlogPosts(blogs[i].handle || blogs[i].id, { fresh: true }) }; }
+      try { got[i] = { status: 'fulfilled', value: await fetchBlogPosts(blogs[i].handle || blogs[i].id) }; }
       catch { /* 실패로 남긴다 */ }
       await sleep(200);
     }
