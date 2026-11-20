@@ -64,6 +64,33 @@ main{max-width:1080px; margin:0 auto; padding:14px 14px 0}
 }
 .sw{width:11px; height:11px; border-radius:3px; border:1px solid #E4D6A8; display:inline-block}
 
+/* ── 🖍️ 형광펜·글씨 색 ────────────────── */
+.colorcard{margin-bottom:14px}
+.colors{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px}
+.colbox{background:var(--cream2); border:1px solid var(--line); border-radius:13px; padding:9px 11px 10px; min-width:0}
+.colhead{display:flex; align-items:center; gap:7px; flex-wrap:wrap; min-height:22px}
+.colhead b{font-size:11.5px; font-weight:800; color:var(--brown); white-space:nowrap}
+.colval{margin-left:auto; font-size:10.5px; font-weight:700; color:var(--mute); font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.tgt{display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:#fff}
+.tgt button{font:inherit; font-size:10.5px; font-weight:800; color:var(--mute); background:transparent; border:0; padding:4px 9px; cursor:pointer; line-height:1.3}
+.tgt button.on{background:var(--pink); color:var(--rose-d)}
+.sws{display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-top:8px; min-height:24px}
+.sws .chip{width:24px; height:24px; border-radius:8px; padding:0; cursor:pointer; border:1px solid rgba(110,75,63,.18); box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)}
+.sws .chip:active{transform:scale(.94)}
+.sws .chip.on{box-shadow:0 0 0 2px var(--cream2), 0 0 0 3.5px var(--rose)}
+.colfoot{display:flex; align-items:center; gap:7px; margin-top:9px; min-width:0}
+.cpin{display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-size:10px; font-weight:800; color:var(--brown); background:#fff; border:1px solid var(--line); border-radius:999px; padding:2px 8px 2px 3px}
+.cpin input[type=color]{width:20px; height:20px; padding:0; border:0; border-radius:999px; background:none; cursor:pointer}
+.cpin input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+.cpin input[type=color]::-webkit-color-swatch{border:1px solid rgba(110,75,63,.2); border-radius:999px}
+.cpin input[type=color]::-moz-color-swatch{border:1px solid rgba(110,75,63,.2); border-radius:999px}
+.colhint{font-size:10px; font-weight:600; color:var(--mute); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.reset{margin-left:auto; flex:0 0 auto; font:inherit; font-size:10px; font-weight:800; color:var(--brown); background:#fff; border:1px solid var(--line); border-radius:999px; padding:3px 9px; cursor:pointer; line-height:1.4}
+.reset:active{background:var(--pink)}
+.reset.off{opacity:.42; cursor:default}
+.colnote{margin:8px 0 0; font-size:10.5px; color:var(--mute); font-weight:600; line-height:1.5}
+@media(max-width:720px){ .colors{grid-template-columns:minmax(0,1fr); gap:7px} .colhint{display:none} }
+
 /* ── 버튼 ─────────────────────────────── */
 .btn{
   font:inherit; font-weight:700; font-size:13.5px; border-radius:12px; cursor:pointer;
@@ -280,11 +307,41 @@ details.helpbox li{margin-bottom:5px}
 
   <div class="chips">
     <span>본문 15pt · 줄간격 1.9</span>
-    <span>형광펜 <i class="sw" style="background:#FFF3B0"></i>#FFF3B0</span>
+    <span>형광펜 <i class="sw" id="jjHlChip" style="background:#FFF3B0"></i><em id="jjHlChipVal" style="font-style:normal">#FFF3B0</em></span>
     <span>소제목 다크브라운 + 골드 라인</span>
     <span>첫인사·💛 찐찡맘 총평 자동</span>
   </div>
 
+  <div class="card pad colorcard" id="jjColors">
+    <div class="colors">
+      <div class="colbox">
+        <div class="colhead"><b>🖍️ 형광펜 색</b><span class="colval" id="jjHlVal">#FFF3B0</span></div>
+        <div class="sws" id="jjHlSw"></div>
+        <div class="colfoot">
+          <label class="cpin" title="직접 고르기"><input type="color" id="jjHlPick" value="#fff3b0"><span>직접</span></label>
+          <button type="button" class="reset off" id="jjHlReset" disabled>기본색</button>
+        </div>
+      </div>
+      <div class="colbox">
+        <div class="colhead">
+          <b>✏️ 글씨 색</b>
+          <div class="tgt" id="jjTxTgt" role="group" aria-label="글씨 색을 바꿀 자리">
+            <button type="button" data-tt="bold" class="on" aria-pressed="true">강조</button>
+            <button type="button" data-tt="sub" aria-pressed="false">소제목</button>
+            <button type="button" data-tt="text" aria-pressed="false">본문</button>
+          </div>
+          <span class="colval" id="jjTxVal">#A9662F</span>
+        </div>
+        <div class="sws" id="jjTxSw"></div>
+        <div class="colfoot">
+          <label class="cpin" title="직접 고르기"><input type="color" id="jjTxPick" value="#a9662f"><span>직접</span></label>
+          <span class="colhint" id="jjTxHint">**굵게** 로 감싼 글씨</span>
+          <button type="button" class="reset off" id="jjTxReset" disabled>기본색</button>
+        </div>
+      </div>
+    </div>
+    <p class="colnote">색은 이 브라우저에만 저장돼요 · 미리보기와 복사본(background-color·color)에 바로 반영</p>
+  </div>
   <div class="card pad">
     <div class="toolbar">
       <label class="switch"><input type="checkbox" id="ftAuto" checked><span class="sl"></span><span>자동 서식 다듬기</span></label>
@@ -714,7 +771,83 @@ const JJ = {
   greet: '안녕하세요, **찐찡맘**이에요:)',
   close: '💛 찐찡맘 총평\n오늘도 쭈니네 기록 보러 와주셔서 감사해요💛\n도움이 되셨다면 공감과 댓글 부탁드려요:)',
 };
-const FT = { auto: true, bound: false, greetOn: true, greet: JJ.greet, closeOn: true, close: JJ.close };
+const FT = { auto: true, bound: false, greetOn: true, greet: JJ.greet, closeOn: true, close: JJ.close, colors: {} };
+
+/* ── 🖍️ 형광펜·글씨 색 ──────────────────────────────────
+   JJ 기본색을 기본값으로 두고, 고른 색만 FT.colors 에 담아 브라우저에 기억한다.
+   · 형광펜 = ==형광펜== 의 background-color · 강조 = **굵게** 의 color
+   · 소제목 = 소제목 color · 본문 = 본문·목록 글씨 color */
+const JJC = { target: 'bold' };
+const JJ_HL_PALETTE = [
+  { c: '#FFF3B0', n: '연노랑' }, { c: '#FFD6E0', n: '연핑크' }, { c: '#FBE3D4', n: '연살구' },
+  { c: '#EBF0FF', n: '연하늘' }, { c: '#C2F4DB', n: '연민트' }, { c: '#FFE1E1', n: '연레드' },
+  { c: '#EDE3FA', n: '연라벤더' },
+];
+const JJ_TX_PALETTE = [
+  { c: '#000000', n: '검정' }, { c: '#3B3330', n: '다크그레이' }, { c: '#6B4A2F', n: '다크브라운' },
+  { c: '#A9662F', n: '브라운' }, { c: '#1F3864', n: '네이비' }, { c: '#C0392B', n: '레드' },
+  { c: '#1F7A5C', n: '그린' },
+];
+const JJ_TX_TARGETS = [
+  { k: 'bold', n: '강조', hint: '**굵게** 로 감싼 글씨' },
+  { k: 'sub', n: '소제목', hint: '소제목·표 머리글 글씨' },
+  { k: 'text', n: '본문', hint: '본문·목록 글씨' },
+];
+
+function jjDef(k) {
+  if (k === 'hl') return JJ.hl;
+  if (k === 'bold') return JJ.boldColor;
+  if (k === 'sub') return JJ.subColor;
+  return JJ.text || '#3B3330';
+}
+function jjVal(k) {
+  const v = FT.colors[k];
+  return (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) ? v : jjDef(k);
+}
+function jjCustom(k) { const v = FT.colors[k]; return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v); }
+function jjBlog() {
+  return Object.assign({}, JJ, { hl: jjVal('hl'), boldColor: jjVal('bold'), subColor: jjVal('sub'), text: jjVal('text') });
+}
+function jjChips(list, cur, what) {
+  const low = String(cur || '').toLowerCase();
+  return list.map((p) =>
+    '<button type="button" class="chip' + (p.c.toLowerCase() === low ? ' on' : '') + '"' +
+    ' data-c="' + p.c + '" title="' + p.n + ' ' + p.c + '" aria-label="' + p.n + ' ' + what + '"' +
+    ' aria-pressed="' + (p.c.toLowerCase() === low) + '" style="background:' + p.c + '"></button>').join('');
+}
+function jjColorSync() {
+  const box = $('#jjHlSw');
+  if (!box) return;
+  const hl = jjVal('hl');
+  box.innerHTML = jjChips(JJ_HL_PALETTE, hl, '형광펜');
+  $('#jjHlPick').value = hl.toLowerCase();
+  $('#jjHlVal').textContent = hl.toUpperCase();
+  $('#jjHlChip').style.background = hl;
+  $('#jjHlChipVal').textContent = hl.toUpperCase();
+  const hr = $('#jjHlReset');
+  hr.disabled = !jjCustom('hl'); hr.classList.toggle('off', hr.disabled);
+
+  const k = JJC.target;
+  const tv = jjVal(k);
+  document.querySelectorAll('#jjTxTgt [data-tt]').forEach((x) => {
+    const on = x.dataset.tt === k;
+    x.classList.toggle('on', on); x.setAttribute('aria-pressed', on);
+  });
+  $('#jjTxSw').innerHTML = jjChips(JJ_TX_PALETTE, tv, '글씨');
+  $('#jjTxPick').value = tv.toLowerCase();
+  $('#jjTxVal').textContent = tv.toUpperCase();
+  const tr = $('#jjTxReset');
+  tr.disabled = !jjCustom(k); tr.classList.toggle('off', tr.disabled);
+  const t = JJ_TX_TARGETS.find((x) => x.k === k);
+  const hint = $('#jjTxHint');
+  if (hint && t) hint.textContent = t.hint;
+}
+function jjApplyColor(k, v) {
+  const s = String(v || '').trim();
+  if (!s) delete FT.colors[k];
+  else if (/^#[0-9a-f]{6}$/i.test(s)) FT.colors[k] = s.toLowerCase();
+  jjColorSync(); ftRender(); ftSave();
+}
 
 function ftSample() {
   return [
@@ -1017,7 +1150,7 @@ function ftJoinLines(blocks) {
   return out;
 }
 function ftBuild() {
-  const b = JJ;
+  const b = jjBlog();                 // 고른 형광펜·글씨 색을 입힌 사본
   let blocks = ftParse($('#ftInput') ? $('#ftInput').value : '');
   if (FT.auto) blocks = ftAutoClosing(ftAutoGreet(ftAuto(blocks)));
   blocks = ftJoinLines(blocks);                                // 원래 붙여 쓴 줄은 한 문단(줄바꿈만)으로
@@ -1138,7 +1271,7 @@ function ftBlankAround(txt) {
 
 function ftSave() {
   if (!FT.bound) return;
-  LS.set('draft', { text: $('#ftInput').value, auto: FT.auto, greetOn: FT.greetOn, greet: FT.greet, closeOn: FT.closeOn, close: FT.close });
+  LS.set('draft', { text: $('#ftInput').value, auto: FT.auto, greetOn: FT.greetOn, greet: FT.greet, closeOn: FT.closeOn, close: FT.close, colors: FT.colors });
 }
 /* 입력란(첫인사·마무리)을 지금 값으로 채운다 */
 function ftEndSync() {
@@ -1172,9 +1305,34 @@ function ftInit() {
     if (typeof saved.close === 'string') FT.close = saved.close;
     if (typeof saved.greetOn === 'boolean') FT.greetOn = saved.greetOn;
     if (typeof saved.closeOn === 'boolean') FT.closeOn = saved.closeOn;
+    if (saved.colors && typeof saved.colors === 'object') {
+      ['hl', 'bold', 'sub', 'text'].forEach((k) => {
+        const v = saved.colors[k];
+        if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) FT.colors[k] = v;
+      });
+    }
   }
   $('#ftAuto').checked = FT.auto;
   ftEndSync();
+  jjColorSync();
+  $('#jjHlSw').addEventListener('click', (ev) => {
+    const c = ev.target.closest('[data-c]');
+    if (c) jjApplyColor('hl', c.dataset.c);
+  });
+  $('#jjHlPick').addEventListener('input', (e) => jjApplyColor('hl', e.target.value));
+  $('#jjHlReset').onclick = () => jjApplyColor('hl', '');
+  $('#jjTxTgt').addEventListener('click', (ev) => {
+    const c = ev.target.closest('[data-tt]');
+    if (!c) return;
+    JJC.target = c.dataset.tt;
+    jjColorSync();
+  });
+  $('#jjTxSw').addEventListener('click', (ev) => {
+    const c = ev.target.closest('[data-c]');
+    if (c) jjApplyColor(JJC.target, c.dataset.c);
+  });
+  $('#jjTxPick').addEventListener('input', (e) => jjApplyColor(JJC.target, e.target.value));
+  $('#jjTxReset').onclick = () => jjApplyColor(JJC.target, '');
   let etimer = 0;
   $('#ftGreetOn').addEventListener('change', (e) => { FT.greetOn = e.target.checked; ftRender(); ftSave(); });
   $('#ftCloseOn').addEventListener('change', (e) => { FT.closeOn = e.target.checked; ftRender(); ftSave(); });
@@ -1227,7 +1385,9 @@ function ftInit() {
   ftRender();
 }
 /* 테스트용 */
-window.__jj = { build: ftBuild, parse: ftParse, endSync: ftEndSync, ft: FT, config: JJ, blockHits: ftBlockHits, blockScan: ftBlockScan };
+window.__jj = { build: ftBuild, parse: ftParse, endSync: ftEndSync, ft: FT, config: JJ, blockHits: ftBlockHits, blockScan: ftBlockScan,
+  colors: () => ({ hl: jjVal('hl'), bold: jjVal('bold'), sub: jjVal('sub'), text: jjVal('text'), target: JJC.target }),
+  setColor: (k, v) => jjApplyColor(k, v), colorTarget: (k) => { JJC.target = k; jjColorSync(); } };
 /* ══════════════════════════════════════════════════════════════
    📸 찐찡이네 사진 배치기 (예닝 오피스 v2.6 로직을 브라우저로 이식)
    ─ 체험단 모드: 역할(외관·내부·메뉴판·메인·디테일) → 슬라이드 묶음 → 원고 자리

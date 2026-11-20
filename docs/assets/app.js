@@ -2772,6 +2772,136 @@ const FT_BLOGS = [
 
 const FT = { blog: 'ye_zib', auto: true, bound: false, built: null, custom: {} };
 
+/* ── 🖍️ 형광펜·글씨 색 ────────────────────────────────────────────
+   블로그 기본색(프리셋 hl·boldColor·subColor·text)을 기본값으로 두고,
+   사용자가 그 자리에서 고른 색만 FT.custom[블로그].colors 에 담아 블로그별로 기억한다.
+   값이 없으면 곧 '블로그 기본색' → 되돌리기가 그 키를 지우는 방식.
+   · 형광펜  : ==형광펜== 문장의 background-color
+   · 글씨 강조: **굵게** 안쪽의 color
+   · 글씨 소제목: 제목·소제목(＋표 머리글)의 color
+   · 글씨 본문: 본문·목록·표 칸의 color */
+const FT_HL_PALETTE = [
+  { c: '#FFD6E0', n: '연핑크' }, { c: '#FFF1C2', n: '연노랑' }, { c: '#FBE3D4', n: '연살구' },
+  { c: '#EBF0FF', n: '연하늘' }, { c: '#C2F4DB', n: '연민트' }, { c: '#FFE1E1', n: '연레드' },
+  { c: '#EDE3FA', n: '연라벤더' },
+];
+const FT_TX_PALETTE = [
+  { c: '#000000', n: '검정' }, { c: '#3B3330', n: '다크그레이' }, { c: '#2C3A46', n: '차콜' },
+  { c: '#1F3864', n: '네이비' }, { c: '#C0392B', n: '레드' }, { c: '#1F7A5C', n: '그린' },
+  { c: '#7A5F2A', n: '브라운' },
+];
+const FT_TX_TARGETS = [
+  { k: 'bold', n: '강조', hint: '**굵게** 로 감싼 글씨' },
+  { k: 'sub', n: '소제목', hint: '제목·소제목 글씨' },
+  { k: 'text', n: '본문', hint: '본문·목록 글씨' },
+];
+const FTC = { target: 'bold' };
+
+function ftColorDef(b, k) {
+  if (k === 'hl') return b.hl;
+  if (k === 'bold') return b.boldColor || '#000000';
+  if (k === 'sub') return b.subColor || '#000000';
+  return b.text || '#3B3330';
+}
+function ftColorSlot(b) {
+  const e = ftEdit(b);
+  if (!e.colors || typeof e.colors !== 'object') e.colors = {};
+  return e.colors;
+}
+function ftColorVal(b, k) {
+  const v = ftColorSlot(b)[k];
+  return (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) ? v : ftColorDef(b, k);
+}
+function ftColorIsCustom(b, k) {
+  const v = ftColorSlot(b)[k];
+  return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+}
+function ftColorSet(b, k, v) {
+  const s = String(v || '').trim();
+  if (!/^#[0-9a-f]{6}$/i.test(s)) return;
+  ftColorSlot(b)[k] = s.toLowerCase();
+}
+function ftColorReset(b, k) { delete ftColorSlot(b)[k]; }
+
+/* 색만 갈아 끼운 블로그 사본 — px·줄바꿈·첫인사 같은 서식 수치는 프리셋 그대로 둔다 */
+function ftBlogC() {
+  const b = ftBlog();
+  return Object.assign({}, b, {
+    hl: ftColorVal(b, 'hl'), boldColor: ftColorVal(b, 'bold'),
+    subColor: ftColorVal(b, 'sub'), text: ftColorVal(b, 'text'),
+  });
+}
+
+function ftChipRow(list, cur, what) {
+  const low = String(cur || '').toLowerCase();
+  return list.map((p) =>
+    '<button type="button" class="ft-chip' + (p.c.toLowerCase() === low ? ' on' : '') + '"' +
+    ' data-c="' + p.c + '" title="' + p.n + ' ' + p.c + '"' +
+    ' aria-label="' + p.n + ' ' + what + '" aria-pressed="' + (p.c.toLowerCase() === low) + '"' +
+    ' style="background:' + p.c + '"></button>').join('');
+}
+
+/* 색 고르기 UI를 지금 블로그·지금 값으로 다시 칠한다(입력란 자체는 다시 만들지 않는다) */
+function ftColorSync() {
+  const box = $('#ftHlSw');
+  if (!box) return;
+  const b = ftBlog();
+  const hl = ftColorVal(b, 'hl');
+  box.innerHTML = ftChipRow(FT_HL_PALETTE, hl, '형광펜');
+  const hp = $('#ftHlPick'); if (hp) hp.value = hl.toLowerCase();
+  const hv = $('#ftHlVal'); if (hv) hv.textContent = hl.toUpperCase();
+  const hr = $('#ftHlReset');
+  if (hr) { const on = ftColorIsCustom(b, 'hl'); hr.disabled = !on; hr.classList.toggle('off', !on); }
+
+  const k = FTC.target;
+  const tv = ftColorVal(b, k);
+  $$('#ftTxTgt [data-tt]').forEach((x) => {
+    const on = x.dataset.tt === k;
+    x.classList.toggle('on', on);
+    x.setAttribute('aria-pressed', on);
+  });
+  const ts = $('#ftTxSw');
+  if (ts) ts.innerHTML = ftChipRow(FT_TX_PALETTE, tv, '글씨');
+  const tp = $('#ftTxPick'); if (tp) tp.value = tv.toLowerCase();
+  const tvl = $('#ftTxVal'); if (tvl) tvl.textContent = tv.toUpperCase();
+  const tr = $('#ftTxReset');
+  if (tr) { const on = ftColorIsCustom(b, k); tr.disabled = !on; tr.classList.toggle('off', !on); }
+  const hint = $('#ftTxHint');
+  if (hint) { const t = FT_TX_TARGETS.find((x) => x.k === k); hint.textContent = t ? t.hint : ''; }
+}
+
+/* 규칙 칩 — 형광펜 색을 바꿨으면 칩에 적힌 색도 같이 바뀐다(색 이름은 '형광펜'으로) */
+function ftRuleChips(preset, eff) {
+  const hlL = String(preset.hl || '').toLowerCase();
+  const nowL = String(eff.hl || '').toLowerCase();
+  const changed = hlL !== nowL;
+  return (preset.rules || []).map((r) => {
+    let t = String(r);
+    if (changed) {
+      t = t.split(preset.hl).join(eff.hl.toUpperCase());
+      const a = preset.hl.replace('#', ''), bb = eff.hl.replace('#', '').toUpperCase();
+      if (a) t = t.split(a).join(bb);
+      t = t.replace(/연(?:핑크|노랑|살구|하늘|민트|레드|라벤더)\s*형광펜/, '형광펜');
+    }
+    return '<span>' + esc(t) + '</span>';
+  });
+}
+
+/* 블로그 칩의 형광펜 띠도 고른 색으로 */
+function ftPaintPicks() {
+  $$('#ftPicks [data-ftblog]').forEach((el) => {
+    const b = FT_BLOGS.find((x) => x.id === el.dataset.ftblog);
+    const sk = el.querySelector('.sk');
+    if (b && sk) sk.style.background = ftColorVal(b, 'hl');
+  });
+}
+
+function ftApplyColor(k, v) {
+  const b = ftBlog();
+  if (v) ftColorSet(b, k, v); else ftColorReset(b, k);
+  ftColorSync(); ftPaintPicks(); ftRender(); ftSave();
+}
+
 /* 블로그별 첫인사·마무리 문구는 화면 입력란에서 고친다(블로그별로 기억).
    값이 없으면 프리셋 기본값으로 채운다. */
 function ftEdit(b) {
@@ -3266,7 +3396,7 @@ function ftJoinLines(blocks) {
 
 /* 미리보기 = 복사본과 같은 HTML */
 function ftBuild() {
-  const b = ftBlog();
+  const b = ftBlogC();                       // 고른 형광펜·글씨 색을 입힌 사본
   let blocks = ftParse($('#ftInput') ? $('#ftInput').value : '');
   if (FT.auto) blocks = ftAuto(blocks, b);                     // 자동 정리 + 예지브러리 첫인사·마무리 끝인사
   blocks = ftJoinLines(blocks);                                // 원래 붙여 쓴 줄은 한 문단(줄바꿈만)으로
@@ -3305,7 +3435,8 @@ function ftBlockPaint(sc) {
 
 function ftRender() {
   if (!FT.bound) return;
-  const b = ftBlog();
+  const preset = ftBlog();
+  const b = ftBlogC();
   const src = $('#ftInput').value;
   const out = ftBuild();
   ftBlockPaint(ftBlockScan());
@@ -3324,7 +3455,7 @@ function ftRender() {
     $('#ftCount').textContent = cnt;
   }
   $('#ftPrevMeta').textContent = b.name + ' 서식 · ' + b.tone;
-  $('#ftRules').innerHTML = b.rules.map((r) => '<span>' + esc(r) + '</span>').join('');
+  $('#ftRules').innerHTML = ftRuleChips(preset, b).join('');
   $('#ftClear').classList.toggle('hidden', !src.trim());
 }
 
@@ -3396,6 +3527,7 @@ function ftInit() {
   $('#ftAuto').checked = FT.auto;
   $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === FT.blog));
   ftEndSync();
+  ftColorSync(); ftPaintPicks();
 
   let timer = 0;
   ta.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { ftRender(); ftSave(); }, 200); });
@@ -3404,8 +3536,27 @@ function ftInit() {
     if (!c) return;
     FT.blog = c.dataset.ftblog;
     $$('#ftPicks [data-ftblog]').forEach((x) => x.classList.toggle('on', x.dataset.ftblog === FT.blog));
-    ftEndSync(); ftRender(); ftSave();
+    ftEndSync(); ftColorSync(); ftRender(); ftSave();
   });
+  // 🖍️ 형광펜 색 · 글씨 색
+  $('#ftHlSw').addEventListener('click', (ev) => {
+    const c = ev.target.closest('[data-c]');
+    if (c) ftApplyColor('hl', c.dataset.c);
+  });
+  $('#ftHlPick').addEventListener('input', (e) => ftApplyColor('hl', e.target.value));
+  $('#ftHlReset').onclick = () => ftApplyColor('hl', '');
+  $('#ftTxTgt').addEventListener('click', (ev) => {
+    const c = ev.target.closest('[data-tt]');
+    if (!c) return;
+    FTC.target = c.dataset.tt;
+    ftColorSync();
+  });
+  $('#ftTxSw').addEventListener('click', (ev) => {
+    const c = ev.target.closest('[data-c]');
+    if (c) ftApplyColor(FTC.target, c.dataset.c);
+  });
+  $('#ftTxPick').addEventListener('input', (e) => ftApplyColor(FTC.target, e.target.value));
+  $('#ftTxReset').onclick = () => ftApplyColor(FTC.target, '');
   // 첫인사·마무리 끝인사 입력란(블로그별로 기억)
   $('#ftGreetOn').addEventListener('change', (e) => { ftEdit(ftBlog()).greetOn = e.target.checked; ftRender(); ftSave(); });
   $('#ftCloseOn').addEventListener('change', (e) => { ftEdit(ftBlog()).closeOn = e.target.checked; ftRender(); ftSave(); });
@@ -3478,6 +3629,13 @@ window.__ft = {
   auto: (v) => { FT.auto = !!v; $('#ftAuto').checked = !!v; ftRender(); },
   edit: () => ftEdit(ftBlog()),
   setEnd: (patch) => { const e = ftEdit(ftBlog()); Object.assign(e, patch || {}); ftEndSync(); ftRender(); },
+  colors: () => {
+    const b = ftBlog();
+    return { blog: b.id, hl: ftColorVal(b, 'hl'), bold: ftColorVal(b, 'bold'),
+             sub: ftColorVal(b, 'sub'), text: ftColorVal(b, 'text'), target: FTC.target };
+  },
+  setColor: (k, v) => ftApplyColor(k, v),
+  colorTarget: (k) => { FTC.target = k; ftColorSync(); },
 };
 
 /* ───────────────────────── 잠금 / 부팅 ───────────────────────── */

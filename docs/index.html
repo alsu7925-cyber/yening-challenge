@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#FAF5EF">
 <meta name="description" content="예지브러리 예브의 6개 블로그 1주 챌린지 대시보드">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>">
-<link rel="stylesheet" href="assets/app.css?v=11201926">
+<link rel="stylesheet" href="assets/app.css?v=11202121">
 </head>
 <body>
 
@@ -71,6 +71,38 @@
       <div class="sec card card-pad">
         <div class="ft-picks" id="ftPicks"></div>
         <div class="ft-rules" id="ftRules"></div>
+
+        <div class="ft-colors" id="ftColors">
+          <div class="ft-color">
+            <div class="ft-color-head">
+              <span class="ft-color-lab">🖍️ 형광펜 색</span>
+              <span class="ft-color-val" id="ftHlVal">#FFD6E0</span>
+            </div>
+            <div class="ft-sws" id="ftHlSw"></div>
+            <div class="ft-color-foot">
+              <label class="ft-cp" title="직접 고르기"><input type="color" id="ftHlPick" value="#ffd6e0"><span>직접</span></label>
+              <button type="button" class="ft-reset off" id="ftHlReset" disabled>블로그 기본색</button>
+            </div>
+          </div>
+          <div class="ft-color">
+            <div class="ft-color-head">
+              <span class="ft-color-lab">✏️ 글씨 색</span>
+              <div class="ft-tgt" id="ftTxTgt" role="group" aria-label="글씨 색을 바꿀 자리">
+                <button type="button" data-tt="bold" class="on" aria-pressed="true">강조</button>
+                <button type="button" data-tt="sub" aria-pressed="false">소제목</button>
+                <button type="button" data-tt="text" aria-pressed="false">본문</button>
+              </div>
+              <span class="ft-color-val" id="ftTxVal">#000000</span>
+            </div>
+            <div class="ft-sws" id="ftTxSw"></div>
+            <div class="ft-color-foot">
+              <label class="ft-cp" title="직접 고르기"><input type="color" id="ftTxPick" value="#000000"><span>직접</span></label>
+              <span class="ft-color-hint" id="ftTxHint">**굵게** 로 감싼 글씨</span>
+              <button type="button" class="ft-reset off" id="ftTxReset" disabled>기본색</button>
+            </div>
+          </div>
+        </div>
+        <p class="ft-color-note">색은 바꾼 블로그에만 저장돼요 · 미리보기와 복사본(background-color·color)에 바로 반영 · 새로고침해도 유지</p>
 
         <div class="ft-tools">
           <label class="ft-switch"><input type="checkbox" id="ftAuto" checked><span class="sw"></span><span class="lb">자동 서식 다듬기</span></label>
@@ -191,7 +223,7 @@
 <div class="toast" id="toast"></div>
 
 <input type="file" id="filePicker" accept="image/*" class="hidden">
-<script src="assets/blocklist.js?v=11201926"></script>
-<script src="assets/app.js?v=11201926"></script>
+<script src="assets/blocklist.js?v=11202121"></script>
+<script src="assets/app.js?v=11202121"></script>
 </body>
 </html>

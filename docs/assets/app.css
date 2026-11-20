@@ -638,6 +638,60 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   background:var(--cream);border:1px solid var(--line);border-radius:999px;padding:4px 9px;
 }
 
+/* 🖍️ 형광펜·글씨 색 고르기 */
+.ft-colors{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px;margin-top:12px}
+.ft-color{
+  background:var(--cream);border:1px solid var(--line);border-radius:14px;
+  padding:9px 11px 10px;min-width:0;
+}
+.ft-color-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-height:22px}
+.ft-color-lab{font-size:11.5px;font-weight:800;color:var(--brown);white-space:nowrap}
+.ft-color-val{
+  margin-left:auto;font-size:10.5px;font-weight:700;color:var(--muted);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;
+}
+.ft-tgt{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
+.ft-tgt button{
+  font-family:inherit;font-size:10.5px;font-weight:800;color:var(--muted);
+  background:transparent;border:0;padding:4px 9px;cursor:pointer;line-height:1.3;
+}
+.ft-tgt button.on{background:var(--pink-soft);color:var(--rose-dark)}
+.ft-sws{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px;min-height:24px}
+.ft-chip{
+  width:24px;height:24px;border-radius:8px;padding:0;cursor:pointer;
+  border:1px solid rgba(110,75,63,.18);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.5);
+  transition:transform .06s,box-shadow .1s;
+}
+.ft-chip:active{transform:scale(.94)}
+.ft-chip.on{box-shadow:0 0 0 2px var(--cream),0 0 0 3.5px var(--rose)}
+.ft-color-foot{display:flex;align-items:center;gap:7px;margin-top:9px;min-width:0}
+.ft-cp{
+  display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+  font-size:10px;font-weight:800;color:var(--brown-2);
+  background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 8px 2px 3px;
+}
+.ft-cp input[type=color]{
+  width:20px;height:20px;padding:0;border:0;border-radius:999px;background:none;cursor:pointer;
+}
+.ft-cp input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+.ft-cp input[type=color]::-webkit-color-swatch{border:1px solid rgba(110,75,63,.2);border-radius:999px}
+.ft-cp input[type=color]::-moz-color-swatch{border:1px solid rgba(110,75,63,.2);border-radius:999px}
+.ft-color-hint{font-size:10px;font-weight:600;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ft-reset{
+  margin-left:auto;flex:0 0 auto;font-family:inherit;font-size:10px;font-weight:800;
+  color:var(--brown-2);background:#fff;border:1px solid var(--line);border-radius:999px;
+  padding:3px 9px;cursor:pointer;line-height:1.4;
+}
+.ft-reset:active{background:var(--pink-soft)}
+.ft-reset.off{opacity:.42;cursor:default}
+.ft-color-note{margin:8px 0 0;font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.5}
+@media(max-width:720px){
+  .ft-colors{grid-template-columns:minmax(0,1fr);gap:7px}
+  .ft-color{padding:8px 10px 9px}
+  .ft-color-hint{display:none}
+}
+
 .ft-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
 .ft-switch{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;color:var(--brown);cursor:pointer;flex:0 0 auto}
 .ft-switch input{position:absolute;opacity:0;width:0;height:0}
