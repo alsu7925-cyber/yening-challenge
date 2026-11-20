@@ -3320,23 +3320,63 @@ function ftInline(s, b) {
   return t.replace(/\n/g, '<br>');
 }
 
+/* ── 네이버 붙여넣기 빈 줄 (2026-11-20) ─────────────────────────
+   네이버 블로그 스마트에디터 ONE은 외부 HTML 을 붙여넣을 때 블록의 CSS `margin` 을 지운다.
+   그래서 `margin:0 0 16px` 으로만 주던 문단 간격이 서식째 붙여넣기에서 통째로 사라져
+   문단·소제목이 다닥다닥 붙었다(예닝 님 지시: "서식째 붙여넣기하니까 빈줄이 다 사라져서 붙네").
+   → 빈 줄이 들어갈 자리마다 실제 빈 문단(<p …>&nbsp;</p>)을 넣고, 블록 margin 은 0 으로 둔다.
+     (완전히 빈 <p></p> 는 에디터가 무시할 수 있으므로 &nbsp; 를 꼭 넣는다.)
+   → 빈 줄 규칙은 ftPlain(평문 복사본)과 같은 함수(ftTightAfter)를 쓰므로
+     미리보기 · 복사한 HTML · 네이버 붙여넣기 결과가 모두 같은 자리에 빈 줄 1개가 된다. */
+function ftBlankHTML(b) {
+  return '<p style="font-size:' + b.body + 'px;line-height:1.9;margin:0;padding:0;">&nbsp;</p>';
+}
+
+/* 소제목·구분선·첫인사·안내문 — 앞뒤에 빈 줄 1줄을 두는 블록 */
+function ftBlocky(x) {
+  return !!x && (x.t === 'h1' || x.t === 'h2' || x.t === 'h3' || x.t === 'sub'
+    || x.t === 'hr' || x.t === 'greet' || x.t === 'note');
+}
+
+/* 앞 블록과 빈 줄 없이 잇는 자리인가(tight) — 평문·HTML 이 함께 쓰는 빈 줄 규칙 */
+function ftTightAfter(prev, bk, b) {
+  if (!prev) return true;                                                  // 문서 첫 블록
+  return (bk.gapBefore === false && !ftBlocky(prev) && !ftBlocky(bk))       // 원래 빈 줄이 없던 곳
+    // 출처 문장(~기준이에요.) 바로 밑에 붙은 목록은 빈 줄 없이 잇는다
+    || ((bk.t === 'ul' || bk.t === 'ol' || bk.t === 'check') && prev.t === 'p'
+      && /(기준이에요|기준입니다|기준)\s*\.?\s*$/.test(String(prev.s || '')))
+    // 핵심정리·Q&A 소제목 다음은 빈 줄 없이(픽모아·세이브데스크·내몸데스크)
+    || ((prev.t === 'h1' || prev.t === 'h2' || prev.t === 'h3') && !!b && ftTightHead(prev.s, b.id));
+}
+
+/* 블록 하나의 평문 — 복사용 text/plain·글자 수·빈 블록 판정에 같이 쓴다 */
+function ftBlockPlain(bk) {
+  const strip = (s) => String(s || '').replace(/==|\*\*/g, '').replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1 ($2)');
+  if (bk.t === 'hr') return '──────────';
+  if (bk.t === 'check') return (bk.items || []).map(strip).join('\n');
+  if (bk.t === 'ul') return (bk.items || []).map((i) => '• ' + strip(i)).join('\n');
+  if (bk.t === 'ol') return (bk.items || []).map((i, n) => (n + 1) + '. ' + strip(i)).join('\n');
+  if (bk.t === 'table') return (bk.rows || []).map((r) => r.map(strip).join(' | ')).join('\n');
+  return strip(bk.s);
+}
+
 function ftBlockHTML(bk, b) {
   const tcol = b.text || '#3B3330';                                  // 블로그별 본문 글자색(기본 #3B3330)
-  const bodyP = 'font-size:' + b.body + 'px;line-height:1.9;margin:0 0 16px;color:' + tcol + ';word-break:keep-all;';
-  if (bk.t === 'h1') return '<p style="font-size:' + b.h1 + 'px;font-weight:800;line-height:1.45;margin:0 0 20px;color:' + b.subColor + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p>';
-  if (bk.t === 'h2' || bk.t === 'sub') return '<p style="font-size:' + b.sub + 'px;font-weight:700;line-height:1.5;margin:30px 0 12px;color:' + b.subColor + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p>';
-  if (bk.t === 'h3') return '<p style="font-size:' + Math.max(18, b.sub - 10) + 'px;font-weight:700;line-height:1.55;margin:22px 0 10px;color:' + b.subColor + ';">' + ftInline(bk.s, b) + '</p>';
+  const bodyP = 'font-size:' + b.body + 'px;line-height:1.9;margin:0;color:' + tcol + ';word-break:keep-all;';
+  if (bk.t === 'h1') return '<p style="font-size:' + b.h1 + 'px;font-weight:800;line-height:1.45;margin:0;color:' + b.subColor + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'h2' || bk.t === 'sub') return '<p style="font-size:' + b.sub + 'px;font-weight:700;line-height:1.5;margin:0;color:' + b.subColor + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'h3') return '<p style="font-size:' + Math.max(18, b.sub - 10) + 'px;font-weight:700;line-height:1.55;margin:0;color:' + b.subColor + ';">' + ftInline(bk.s, b) + '</p>';
   if (bk.t === 'p') return '<p style="' + bodyP + '">' + ftInline(bk.s, b) + '</p>';
   if (bk.t === 'greet') return '<p style="' + bodyP + '">' + ftInline(bk.s, b) + '</p>';
-  if (bk.t === 'note') return '<p style="font-size:' + Math.max(12, b.body - 3) + 'px;line-height:1.7;margin:0 0 16px;color:#8A7A72;">' + ftInline(bk.s, b) + '</p>';
-  if (bk.t === 'q') return '<div style="background-color:' + b.quote.bg + ';border-left:4px solid ' + b.quote.bar + ';border-radius:8px;padding:16px 18px;margin:0 0 18px;"><p style="font-size:' + (b.quote.size || 24) + 'px;font-weight:700;line-height:1.85;margin:0;color:' + b.quote.color + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p></div>';
-  if (bk.t === 'hr') return '<p style="border:none;border-top:1px solid ' + b.hr + ';margin:' + (b.hrMargin || 30) + 'px 0;font-size:1px;line-height:1;">&nbsp;</p>';
+  if (bk.t === 'note') return '<p style="font-size:' + Math.max(12, b.body - 3) + 'px;line-height:1.7;margin:0;color:#8A7A72;">' + ftInline(bk.s, b) + '</p>';
+  if (bk.t === 'q') return '<div style="background-color:' + b.quote.bg + ';border-left:4px solid ' + b.quote.bar + ';border-radius:8px;padding:16px 18px;margin:0;"><p style="font-size:' + (b.quote.size || 24) + 'px;font-weight:700;line-height:1.85;margin:0;color:' + b.quote.color + ';word-break:keep-all;">' + ftInline(bk.s, b) + '</p></div>';
+  if (bk.t === 'hr') return '<p style="border:none;border-top:1px solid ' + b.hr + ';margin:0;font-size:1px;line-height:1;">&nbsp;</p>';
   if (bk.t === 'check') {
     // 실제 발행 글의 ✓ 체크리스트는 항목마다 본문 문단(✓ 기호를 그대로 둔다) — 항목끼리 붙여 쓴다
-    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'px;line-height:1.8;margin:0 0 ' + (i === bk.items.length - 1 ? 16 : 6) + 'px;color:' + tcol + ';">' + ftInline(it, b) + '</p>').join('');
+    return bk.items.map((it) => '<p style="font-size:' + b.body + 'px;line-height:1.8;margin:0;color:' + tcol + ';">' + ftInline(it, b) + '</p>').join('');
   }
   if (bk.t === 'ul' || bk.t === 'ol') {
-    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'px;line-height:1.8;margin:0 0 ' + (i === bk.items.length - 1 ? 16 : 6) + 'px;padding-left:4px;color:' + tcol + ';">' + (bk.t === 'ul' ? '• ' : (i + 1) + '. ') + ftInline(it, b) + '</p>').join('');
+    return bk.items.map((it, i) => '<p style="font-size:' + b.body + 'px;line-height:1.8;margin:0;padding-left:4px;color:' + tcol + ';">' + (bk.t === 'ul' ? '• ' : (i + 1) + '. ') + ftInline(it, b) + '</p>').join('');
   }
   if (bk.t === 'table') {
     const rows = bk.rows.map((cells, ri) => {
@@ -3344,34 +3384,35 @@ function ftBlockHTML(bk, b) {
       const st = 'border:1px solid ' + b.hr + ';padding:8px 10px;' + (ri === 0 ? 'background-color:' + b.th + ';font-weight:700;color:' + b.subColor + ';' : 'color:' + tcol + ';');
       return '<tr>' + cells.map((c) => '<' + tag + ' style="' + st + '">' + ftInline(c, b) + '</' + tag + '>').join('') + '</tr>';
     }).join('');
-    return '<table style="border-collapse:collapse;width:100%;margin:0 0 18px;font-size:' + Math.max(13, b.body - 1) + 'px;">' + rows + '</table>';
+    return '<table style="border-collapse:collapse;width:100%;margin:0;font-size:' + Math.max(13, b.body - 1) + 'px;">' + rows + '</table>';
   }
   return '';
 }
 
+/* 블록들을 이어 붙인 HTML — 빈 줄 자리마다 실제 빈 문단을 끼운다(클립보드 text/html 과 미리보기가 같은 문자열) */
+function ftHTML(blocks, b) {
+  let html = '';
+  let prev = null;
+  blocks.forEach((bk) => {
+    if (!ftBlockPlain(bk)) return;                    // 평문이 빈 블록은 넣지 않는다(ftPlain 과 같은 기준)
+    const one = ftBlockHTML(bk, b);
+    if (!one) return;
+    if (html && !ftTightAfter(prev, bk, b)) html += ftBlankHTML(b);
+    html += one;
+    prev = bk;
+  });
+  return html ? '<div style="color:' + (b.text || '#3B3330') + ';word-break:keep-all;">' + html + '</div>' : '';
+}
+
 function ftPlain(blocks, b) {
-  const strip = (s) => String(s || '').replace(/==|\*\*/g, '').replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1 ($2)');
   let out = '';
   let prev = null;
   blocks.forEach((bk) => {
-    let txt = '';
-    if (bk.t === 'hr') txt = '──────────';
-    else if (bk.t === 'check') txt = bk.items.map((i) => strip(i)).join('\n');
-    else if (bk.t === 'ul') txt = bk.items.map((i) => '• ' + strip(i)).join('\n');
-    else if (bk.t === 'ol') txt = bk.items.map((i, n) => (n + 1) + '. ' + strip(i)).join('\n');
-    else if (bk.t === 'table') txt = bk.rows.map((r) => r.map(strip).join(' | ')).join('\n');
-    else txt = strip(bk.s);
+    const txt = ftBlockPlain(bk);
     if (!txt) return;
     // 원래 빈 줄이 없던 곳(gapBefore=false)은 빈 줄 없이 잇는다 — 복사본도 화면과 같이 나오게.
-    // 단, 소제목·구분선·첫인사·안내문은 앞뒤에 빈 줄 1줄을 둔다.
-    const blocky = (x) => x && (x.t === 'h1' || x.t === 'h2' || x.t === 'h3' || x.t === 'hr' || x.t === 'greet' || x.t === 'note');
-    const tight = out && prev && (
-      (bk.gapBefore === false && !blocky(prev) && !blocky(bk))
-      // 출처 문장(~기준이에요.) 바로 밑에 붙은 목록은 빈 줄 없이 잇는다
-      || ((bk.t === 'ul' || bk.t === 'ol' || bk.t === 'check') && prev.t === 'p'
-        && /(기준이에요|기준입니다|기준)\s*\.?\s*$/.test(String(prev.s || '')))
-      // 핵심정리·Q&A 소제목 다음은 빈 줄 없이(픽모아·세이브데스크·내몸데스크)
-      || ((prev.t === 'h1' || prev.t === 'h2' || prev.t === 'h3') && b && ftTightHead(prev.s, b.id)));
+    // 단, 소제목·구분선·첫인사·안내문은 앞뒤에 빈 줄 1줄을 둔다. (HTML 빈 문단과 같은 규칙 = ftTightAfter)
+    const tight = out ? ftTightAfter(prev, bk, b) : false;
     out += (out ? (tight ? '\n' : '\n\n') : '') + txt;
     prev = bk;
   });
@@ -3400,9 +3441,7 @@ function ftBuild() {
   let blocks = ftParse($('#ftInput') ? $('#ftInput').value : '');
   if (FT.auto) blocks = ftAuto(blocks, b);                     // 자동 정리 + 예지브러리 첫인사·마무리 끝인사
   blocks = ftJoinLines(blocks);                                // 원래 붙여 쓴 줄은 한 문단(줄바꿈만)으로
-  const html = blocks.length
-    ? '<div style="color:' + (b.text || '#3B3330') + ';word-break:keep-all;">' + blocks.map((bk) => ftBlockHTML(bk, b)).filter(Boolean).join('') + '</div>'
-    : '';
+  const html = blocks.length ? ftHTML(blocks, b) : '';         // 빈 줄 자리에 실제 빈 문단까지 넣은 HTML
   return { html, text: ftPlain(blocks, b), blocks, blog: b };
 }
 
