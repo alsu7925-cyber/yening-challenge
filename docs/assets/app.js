@@ -107,7 +107,7 @@ const APP = {
   public: null,
   built: null,
   config: null,   // 빌드본(복호화) — 블로그 목록·목표는 항상 이쪽을 따른다
-  ui: { tab: 'home', round: null, blog: 'all', matTab: 'main_inflow', matDate: kstDate(), topic: 'all' },
+  ui: { tab: 'home', round: null, blog: 'all', matTab: 'main_inflow', matDate: kstDate(), topic: 'all', thTopic: 'all' },
   sync: { url: '', anon: '', key: '', rev: 0, last: '', status: 'idle', busy: false },
   bootAt: kstDate(),
 };
@@ -1032,6 +1032,7 @@ function brandOfUrl(u) {
 /* ───────────────────────── 오늘의 소재 ───────────────────────── */
 const MAT_TABS = [
   ['main_inflow', '메인 유입'],
+  ['topic_hompan', '주제 홈판'],
   ['keywords', '키워드'],
   ['ent', '연예 실시간'],
   ['community', '커뮤 베스트'],
@@ -1103,6 +1104,8 @@ function matBody(tab, date) {
       ? `<button class="refresh-btn" data-refresh="${tab}">🔄 새로고침</button>` : ''}</div>`
     : '';
 
+  if (tab === 'topic_hompan') return thBody(d, date);
+
   if (tab === 'keywords') {
     const topics = d.topics || [];
     const chips = [`<button class="chip ${APP.ui.topic === 'all' ? 'on' : ''}" data-topic="all">전체</button>`]
@@ -1148,9 +1151,13 @@ function matBody(tab, date) {
     const q = r.url && /^https?:/.test(r.url) ? r.url : 'https://search.naver.com/search.naver?query=' + encodeURIComponent(r.title);
     const meta = [];
     if (r.blog) meta.push(r.blog);
+    if (r.nickname) meta.push(r.nickname);
     if (r.views != null && r.blog) meta.push('조회 ' + nfmt(r.views));
     if (r.src) meta.push(r.src);
-    if (r.at) meta.push(String(r.at).slice(5, 16).replace('T', ' '));
+    if (r.at) meta.push('📅 ' + String(r.at).slice(0, 16).replace('T', ' '));
+    if (r.photos != null) meta.push('📷 ' + r.photos + '장');
+    if (r.likes != null) meta.push('❤️ ' + nfmt(r.likes));
+    if (r.comments != null) meta.push('💬 ' + nfmt(r.comments));
     const blkTag = blk.length
       ? `<span class="blk-tag" title="${esc('사용 금지 — ' + ycLabels(blk))}">🚨 사용 금지</span>`
       : '';
@@ -1178,6 +1185,133 @@ function matBody(tab, date) {
       </div>`;
   }).join('')}
     </div>`;
+}
+
+/* ───────────────── 주제별 홈판 (2026-11-20 추가) ─────────────────
+   work/collect_topic_hompan.py 가 채운 materials.topic_hompan 을 그린다.
+   칩: 전체 메인유입 / 건강 / 경제 / 연예인다이어트 / 자동차 / 스포츠
+   각 줄: 작성일 · 📷 사진 N장 · ❤️ 공감 · 💬 댓글 · 쓸게요(제목 복사) · 원문 링크
+   상단 📥 엑셀(CSV) 저장: 고른 주제 또는 전체 수집 목록(UTF-8 BOM → 엑셀 한글 안 깨짐) */
+function thData() {
+  return (APP.state.materials || {}).topic_hompan || null;
+}
+
+function thTopicList() {
+  const d = thData();
+  return (d && d.topics) || [];
+}
+
+function thRow(r, i, scope) {
+  const key = 'th:' + scope + ':' + (r.url || r.title);
+  const on = !!APP.state.picks[key];
+  const blk = ycScan(r.title);
+  const soft = ycSoft(r.title);
+  const q = r.url && /^https?:/.test(r.url) ? r.url : 'https://search.naver.com/search.naver?query=' + encodeURIComponent(r.title);
+  const bits = [];
+  if (r.nickname) bits.push(`<span class="who">${esc(r.nickname)}</span>`);
+  if (r.date || r.at) bits.push(`<span>📅 ${esc(String(r.date || r.at).slice(0, 10).replace(/-/g, '.'))}</span>`);
+  if (r.photos != null) bits.push(`<span>📷 ${r.photos}장</span>`);
+  if (r.likes != null) bits.push(`<span>❤️ ${nfmt(r.likes)}</span>`);
+  if (r.comments != null) bits.push(`<span>💬 ${nfmt(r.comments)}</span>`);
+  if (r.top) bits.push('<span class="th-top">🏅 홈판 TOP</span>');
+  const blkTag = blk.length
+    ? `<span class="blk-tag" title="${esc('사용 금지 — ' + ycLabels(blk))}">🚨 사용 금지</span>`
+    : '';
+  const softTag = soft.length
+    ? `<span class="soft-tag" title="${esc(soft.map((x) => x.head || x.label).join(' / '))}">⚠️ 주의</span>`
+    : '';
+  const act = (blk.length && !on)
+    ? `<button class="go blk-off" disabled title="${esc('🚨 고소·저작권 주의 대상 — ' + ycLabels(blk))}">🚨 금지</button>`
+    : `<button class="go ${on ? 'on' : ''}" data-pick="${esc(key)}" data-copy="${esc(r.title)}">${blk.length ? '해제' : (on ? '쓸게요 ✓' : '쓸게요')}</button>`;
+  return `<div class="mat-item th-item ${i < 3 && !r.top ? 'top' : ''}${blk.length ? ' blocked' : ''}${soft.length ? ' soft' : ''}">
+      <div class="n">${r.rank || i + 1}</div>
+      <div class="body">
+        <a class="t" href="${esc(q)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+        <div class="m">${blkTag}${softTag}${bits.join('')}</div>
+      </div>
+      <div class="acts">${act}<a class="go open" href="${esc(q)}" target="_blank" rel="noopener">원문</a></div>
+    </div>`;
+}
+
+function thBody(d, date) {
+  const topics = thTopicList();
+  const sel = APP.ui.thTopic || 'all';
+  const chips = [`<button class="chip ${sel === 'all' ? 'on' : ''}" data-th="all">전체 메인유입</button>`]
+    .concat(topics.map((t) => `<button class="chip ${sel === t.id ? 'on' : ''}" data-th="${esc(t.id)}">${esc(t.emoji || '')} ${esc(t.name)}<span class="n">${(t.rows || []).length}</span></button>`))
+    .join('');
+  const stamp = d && d.collected_at ? ' · 수집 ' + String(d.collected_at).replace('T', ' ').slice(5, 16) : '';
+  const noteSrc = sel === 'all'
+    ? '크리에이터 어드바이저 메인 유입 + 수집 시점 실측 지표'
+    : ((d && d.source) || '네이버 블로그 주제별 홈판 실측');
+  const note = `<div class="sec mat-note"><span class="mtxt">${esc(noteSrc)}${esc(stamp)}</span></div>`;
+  const bar = `<div class="sec th-bar">
+      <div class="chip-row">${chips}</div>
+      <div class="th-csv">
+        <button class="csv-btn" data-csv="${esc(sel === 'all' ? 'main' : sel)}">📥 엑셀(CSV) 저장</button>
+        <button class="csv-btn ghost" data-csv="all" title="5개 주제 전부 저장">전체 수집</button>
+      </div>
+    </div>`;
+
+  if (sel === 'all') {
+    const mi = (APP.state.materials || {}).main_inflow || {};
+    const rows = mi.rows || [];
+    const head = `<div class="sec th-head"><b>네이버 메인(홈판)에서 많이 유입된 글 1~20</b>
+      <span class="sub">${esc(mi.date ? mi.date.replace(/-/g, '.') + ' 기준' : '')} · 남의 글 제목·지표로 우리 제목을 벤치마킹</span></div>`;
+    if (!rows.length) return note + bar + '<div class="sec card"><div class="empty-note">메인 유입 자료가 아직 없어요.</div></div>';
+    return note + bar + head + `<div class="sec mat-list">${rows.map((r, i) => thRow(r, i, 'all')).join('')}</div>`;
+  }
+
+  const t = topics.find((x) => x.id === sel);
+  if (!t) return note + bar + '<div class="sec card"><div class="empty-note">이 주제 자료가 아직 없어요.<br>수집기를 돌리면 채워집니다.</div></div>';
+  const head = `<div class="sec th-head"><b>${esc(t.emoji || '')} ${esc(t.name)} 홈판 인기글 ${t.rows.length}건</b>
+      <span class="sub">${esc(t.source || '')} · 공감 많은 순 (지표는 수집 시점 실측)</span></div>`;
+  return note + bar + head + `<div class="sec mat-list">${(t.rows || []).map((r, i) => thRow(r, i, sel)).join('')}</div>`;
+}
+
+/* ── CSV (UTF-8 BOM · 엑셀에서 바로 열림) ─────────────────────── */
+function thCsvRows(scope) {
+  const head = ['주제', '순위', '제목', '블로그 닉네임', '작성일', '사진 수', '공감', '댓글', '링크'];
+  const out = [head];
+  const push = (topicName, r) => out.push([
+    topicName, r.rank || '', r.title || '', r.nickname || '',
+    (r.date || String(r.at || '').slice(0, 10)),
+    r.photos == null ? '' : r.photos,
+    r.likes == null ? '' : r.likes,
+    r.comments == null ? '' : r.comments,
+    r.url || '',
+  ]);
+  const topics = thTopicList();
+  if (scope === 'all') {
+    topics.forEach((t) => (t.rows || []).forEach((r) => push(t.name, r)));
+  } else if (scope === 'main') {
+    ((APP.state.materials || {}).main_inflow || { rows: [] }).rows.forEach((r) => push('메인유입', r));
+  } else {
+    const t = topics.find((x) => x.id === scope);
+    if (t) (t.rows || []).forEach((r) => push(t.name, r));
+  }
+  return out;
+}
+
+function downloadCsv(scope) {
+  const rows = thCsvRows(scope);
+  if (rows.length < 2) { toast('내려받을 자료가 없어요'); return; }
+  const name = scope === 'all' ? '전체수집' : (scope === 'main' ? '메인유입' : (thTopicList().find((t) => t.id === scope) || {}).name || scope);
+  const csv = '\ufeff' + rows.map((r) => r.map((v) => {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\r\n');
+  try {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '예브홈판_' + name + '_' + kstDate().replace(/-/g, '') + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    toast('엑셀(CSV) ' + (rows.length - 1) + '건 내려받았어요');
+  } catch (e) {
+    toast('저장이 막혔어요 · ' + String((e && e.message) || e).slice(0, 30));
+  }
 }
 
 /* ───────────────────────── 🎯 홈판 제목 점수기 ─────────────────────────
@@ -2276,8 +2410,13 @@ function bindEvents() {
     const tp = t.closest('[data-topic]');
     if (tp) { APP.ui.topic = tp.dataset.topic; renderMaterials(); return; }
 
-    const pick = t.closest('[data-pick]');
-    if (pick) {
+    const th = t.closest('[data-th]');
+    if (th) { APP.ui.thTopic = th.dataset.th; renderMaterials(); return; }
+
+    const csv = t.closest('[data-csv]');
+    if (csv) { downloadCsv(csv.dataset.csv); return; }
+
+    const pick = t.closest('[data-pick]');    if (pick) {
       const k = pick.dataset.pick;
       const txt = pick.dataset.copy || '';
       const what = k.indexOf('kw:') === 0 ? '키워드' : '제목';
