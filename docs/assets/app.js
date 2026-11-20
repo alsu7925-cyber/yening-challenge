@@ -3298,14 +3298,14 @@ const FT_HL_SKIP = [
 
 function ftHlCount(s) { return (String(s || '').match(/==/g) || []).length / 2; }
 
-function ftHlable(bk, i) {
+function ftHlable(bk, i, intro) {
   if (!bk || bk.t !== 'p') return false;
   const s = String(bk.s || '').trim();
   if (s.length < 12) return false;                                   // 사진 설명·짧은 한 줄
   if (!/[가-힣]/.test(s)) return false;
   const chk = s.replace(/^[\[("'“”‘’]+/, '');
   for (let k = 0; k < FT_HL_SKIP.length; k++) if (FT_HL_SKIP[k].test(chk)) return false;
-  if (i === 0 && !/\.$/.test(s)) return false;                     // 문서 첫 줄(제목)은 건드리지 않는다
+  if ((i === 0 || intro) && !/\.$/.test(s)) return false;   // 도입부의 제목 줄(마침표 없음)은 건드리지 않는다
   return true;
 }
 
@@ -3313,15 +3313,21 @@ function ftAutoHl(blocks) {
   const out = blocks.slice();
   const sections = [];
   let cur = [];
+  let headSeen = false;
   for (let i = 0; i < out.length; i++) {
     const bk = out[i];
-    if (bk.t === 'h1' || bk.t === 'h2' || bk.t === 'h3') { if (cur.length) sections.push(cur); cur = []; continue; }
+    if (bk.t === 'h1' || bk.t === 'h2' || bk.t === 'h3') {
+      if (cur.length) sections.push({ idxs: cur, intro: !headSeen });
+      cur = [];
+      headSeen = true;
+      continue;
+    }
     cur.push(i);
   }
-  if (cur.length) sections.push(cur);
+  if (cur.length) sections.push({ idxs: cur, intro: !headSeen });
 
-  sections.forEach((idxs0) => {
-    const idxs = idxs0.filter((i) => ftHlable(out[i], i));
+  sections.forEach((sec) => {
+    const idxs = sec.idxs.filter((i) => ftHlable(out[i], i, sec.intro));
     if (!idxs.length) return;
     const want = idxs.length >= 2 ? 2 : 1;
     let have = 0;
