@@ -25,9 +25,9 @@ function daysBetween(a, b) {
   while (d <= b && guard++ < 400) { out.push(d); d = addDays(d, 1); }
   return out;
 }
-function toast(msg) {
+function toast(msg, ms) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
-  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 2200);
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), ms || 2200);
 }
 
 /* ───────────────────────── 클립보드 (모바일·구형 브라우저 대응) ───────────────────────── */
@@ -1946,18 +1946,26 @@ async function refreshMat(tab, btn) {
   }
 }
 
-/* ───────────────── 🔄 오늘 발행글 한 번에 불러오기 (2026-11-20 추가) ─────────────────
+/* ───────────────── 🔄 오늘 발행글 한 번에 불러오기 (2026-11-20 추가 · 같은 날 프록시 재구성) ─────────────────
    네이버 블로그 6곳의 RSS(rss.blog.naver.com/{id}.xml)를 브라우저가 직접 읽어,
    '오늘'과 '기수 안의 어제' 발행 글을 인증 달력에 자동 등록한다.
    · 네이버 RSS 는 CORS 를 열지 않아서 프록시를 순서대로 시도한다.
-       1) api.allorigins.win/raw   → XML 원문(가장 정확 · 발행 시각 원본)
-       2) api.allorigins.win/get   → JSON.contents
-       3) api.rss2json.com         → JSON(pubDate 가 UTC 로 와서 +9시간 보정)  ※ 새 피드가 많으면 속도 제한
+     순서는 2026-11-20 실측(실제 브라우저 · 6곳 전부)으로 정했다.
+       1) api.rss2json.com        JSON 20건 · 0.5~1.4초 · 6곳 모두 성공  ← 1순위
+       2) api.allorigins.win/get  JSON.contents(XML) · 6~20초
+       3) api.codetabs.com        XML 원문 · 5req/s 제한
+       4) api.allorigins.win/raw  XML 원문 · 큰 피드(110KB)는 25초 타임아웃이 잦다(예전 1순위였으나 폴백으로 내림)
+     · corsproxy.io 는 2026-11-20 부터 API 키를 요구(401)해 뺐다.
    · 발행 시각은 KST 로 바꿔 날짜를 정하고, 이미 등록된 주소·지운 글(tombstone)은 건너뛴다.
    · 점수 규칙(하루 10편까지 인정)을 넘지 않게만 채운다. */
-const RSS_PROXY_RAW = (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u);
-const RSS_PROXY_GET = (u) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u);
-const RSS2JSON_URL = (u) => 'https://api.rss2json.com/v1/api.json?count=20&rss_url=' + encodeURIComponent(u);
+const RSS_ROUTES = [
+  { id: 'rss2json', kind: 'json', ms: 9000, make: (u) => 'https://api.rss2json.com/v1/api.json?count=20&rss_url=' + encodeURIComponent(u) },
+  { id: 'allorigins/get', kind: 'wrap', ms: 15000, make: (u) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u) },
+  { id: 'codetabs', kind: 'xml', ms: 13000, make: (u) => 'https://api.codetabs.com/v1/proxy?quest=' + u },
+  { id: 'allorigins/raw', kind: 'xml', ms: 13000, make: (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u) },
+];
+const RSS_CACHE_MS = 3 * 60 * 1000;          // 같은 블로그를 3분 안에 또 부르면 저장본을 쓴다(프록시 보호)
+const RSS_STAT = {};                          // 블로그별로 실제 성공한 경로 (진단용 · 화면엔 안 보임)
 
 /** 주소 정규화 — 같은 글을 다른 주소로 두 번 등록하지 않게 (쿼리·모바일 도메인 제거) */
 function urlKey(u) {
@@ -2008,44 +2016,82 @@ function parseRssJson(j) {
   return out;
 }
 
-/** 블로그 한 곳의 최신 글 — 프록시 3단계 폴백 */
-async function fetchBlogPosts(handle) {
-  const rss = 'https://rss.blog.naver.com/' + handle + '.xml';
-  const errs = [];
-  const tryStep = async (label, fn) => {
-    try {
-      const rows = await fn();
-      if (rows && rows.length) return rows;
-      errs.push(label + ' 빈 응답');
-    } catch (e) { errs.push(label + ' ' + String((e && e.message) || e).slice(0, 24)); }
-    return null;
-  };
-  let rows = await tryStep('원문', async () => parseRssXml(await fetchText(RSS_PROXY_RAW(rss), 25000)));
-  if (!rows) rows = await tryStep('대체', async () => { const j = JSON.parse(await fetchText(RSS_PROXY_GET(rss), 25000)); return parseRssXml((j && j.contents) || ''); });
-  if (!rows) rows = await tryStep('rss2json', async () => parseRssJson(JSON.parse(await fetchText(RSS2JSON_URL(rss), 20000))));
-  if (!rows) throw new Error(errs.join(' / ') || '결과 없음');
-  return rows;
+/** 블로그 한 곳의 최신 글 — 프록시 4단계 폴백 + 3분 저장본 */
+function rssCacheGet(h) {
+  try {
+    const j = JSON.parse(localStorage.getItem('yc.rss.' + h) || 'null');
+    if (j && j.at && Date.now() - j.at < RSS_CACHE_MS && Array.isArray(j.rows) && j.rows.length) return j.rows;
+  } catch { /* 저장본이 깨졌으면 그냥 새로 받는다 */ }
+  return null;
+}
+function rssCacheSet(h, rows) {
+  try { localStorage.setItem('yc.rss.' + h, JSON.stringify({ at: Date.now(), rows: rows.slice(-60) })); } catch { /* 용량 초과는 무시 */ }
 }
 
-/** 6곳을 한 번에 불러와 오늘(및 기수 안의 어제) 글을 자동 등록 */
+async function fetchBlogPosts(handle, opt) {
+  const rss = 'https://rss.blog.naver.com/' + handle + '.xml';
+  if (!(opt && opt.fresh)) {
+    const hit = rssCacheGet(handle);
+    if (hit) { RSS_STAT[handle] = 'cache'; return hit; }
+  }
+  const errs = [];
+  for (const r of RSS_ROUTES) {
+    try {
+      const txt = await fetchText(r.make(rss), r.ms);
+      let rows;
+      if (r.kind === 'json') rows = parseRssJson(JSON.parse(txt));
+      else if (r.kind === 'wrap') { const j = JSON.parse(txt); rows = parseRssXml((j && (j.contents || j.body)) || ''); }
+      else rows = parseRssXml(txt);
+      if (rows && rows.length) { rssCacheSet(handle, rows); RSS_STAT[handle] = r.id; return rows; }
+      errs.push(r.id + ' 빈 응답');
+    } catch (e) { errs.push(r.id + ' ' + String((e && e.message) || e).slice(0, 20)); }
+  }
+  throw new Error(errs.join(' / ') || '결과 없음');
+}
+
+/** 6곳을 한 번에 불러와 오늘(및 기수 안의 어제) 글을 자동 등록
+ *  · 프록시 rate limit 을 피하려고 2곳씩 끊어 220ms 간격으로 부른다(6곳 동시 호출 금지)
+ *  · 그래도 실패한 곳만 0.6초 뒤 1회 더 시도한다 */
 async function importTodayPosts(btn) {
   const s = APP.state, round = activeRound();
   if (!s || !round) return;
   const label = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.dataset.busy = '1'; btn.textContent = '⏳ 6곳 불러오는 중…'; }
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const setBusy = (txt) => { if (btn && btn.isConnected) btn.textContent = txt; };
 
   const today = kstDate();
   const dates = [today];
   const yest = addDays(today, -1);
   if (roundDays(round).includes(yest)) dates.push(yest);   // 기수 안의 어제 글도 빈 칸이면 채운다
 
-  const got = await Promise.allSettled(s.blogs.map((b) => fetchBlogPosts(b.handle || b.id)));
+  const blogs = s.blogs;
+  const GAP_MS = 220, BATCH = 2;
+  const got = new Array(blogs.length).fill(null);
+  for (let i = 0; i < blogs.length; i += BATCH) {
+    const grp = blogs.slice(i, i + BATCH);
+    setBusy('⏳ ' + (i + 1) + '~' + (i + grp.length) + '/' + blogs.length + '곳 불러오는 중…');
+    const res = await Promise.allSettled(grp.map((b) => fetchBlogPosts(b.handle || b.id)));
+    res.forEach((r, k) => { got[i + k] = r; });
+    if (i + BATCH < blogs.length) await sleep(GAP_MS);
+  }
+  // 한 번에 실패한 곳만 다시 (프록시가 잠깐 막힌 경우가 대부분)
+  const miss = got.map((r, i) => ((!r || r.status !== 'fulfilled') ? i : -1)).filter((i) => i >= 0);
+  if (miss.length) {
+    setBusy('⏳ ' + miss.length + '곳 다시 시도 중…');
+    await sleep(600);
+    for (const i of miss) {                                  // 재시도도 한 곳씩(간격 200ms)
+      try { got[i] = { status: 'fulfilled', value: await fetchBlogPosts(blogs[i].handle || blogs[i].id, { fresh: true }) }; }
+      catch { /* 실패로 남긴다 */ }
+      await sleep(200);
+    }
+  }
   const parts = [], fails = [];
   let total = 0, skipped = 0, over = 0;
 
   got.forEach((r, i) => {
-    const b = s.blogs[i];
-    if (r.status !== 'fulfilled') { fails.push(b.name); return; }
+    const b = blogs[i];
+    if (!r || r.status !== 'fulfilled') { fails.push(b.name); return; }
     let added = 0;
     const items = r.value.slice().sort((a, c) => String(a.at).localeCompare(String(c.at)));   // 발행 순서대로
     for (const it of items) {
@@ -2064,16 +2110,18 @@ async function importTodayPosts(btn) {
 
   if (btn) { btn.disabled = false; delete btn.dataset.busy; btn.textContent = label || '🔄 오늘 발행글 한 번에 불러오기'; }
 
+  const failTxt = fails.length ? ' · ' + fails.join('·') + ' ' + fails.length + '곳은 다시' : '';
   if (total) {
     saveLocal(); queuePush(); renderAll();
     const head = parts.slice(0, 3).join(' · ') + (parts.length > 3 ? ' 등' : '');
-    toast(head + ' 총 ' + total + '편 불러왔어요' + (fails.length ? ' · ' + fails.length + '곳은 다시' : ''));
+    toast(head + ' 총 ' + total + '편 불러왔어요' + failTxt, fails.length ? 4000 : 2600);
   } else if (fails.length) {
-    toast(fails.length + '곳을 못 불러왔어요 · 잠시 뒤 다시 눌러 주세요');
+    toast(fails.length + '곳을 못 불러왔어요(' + fails.join('·') + ') · 잠시 뒤 다시 눌러 주세요', 4200);
   } else {
-    toast(over ? '오늘 치는 다 찼어요' : '새로 등록할 글이 없어요 · 이미 다 등록됐어요');
+    toast((over ? '오늘 치는 다 찼어요' : '새로 등록할 글이 없어요 · 이미 다 등록됐어요') + ' (' + blogs.length + '곳 모두 확인)', 2600);
   }
-  return { total, parts, fails, skipped, over };
+  try { console.info('[RSS] 경로', JSON.stringify(RSS_STAT)); } catch { /* 무시 */ }
+  return { total, parts, fails, skipped, over, routes: Object.assign({}, RSS_STAT) };
 }
 
 /* ───────────────────────── 시트 ───────────────────────── */
