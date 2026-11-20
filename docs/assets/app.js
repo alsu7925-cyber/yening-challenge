@@ -268,6 +268,22 @@ function dayEntry(date, bid) {
   const e = APP.state && APP.state.entries ? APP.state.entries[date] : null;
   return (e && e[bid]) || null;
 }
+
+/** 기수 시작 전날의 확정 기록 — 1기 첫날 증가분의 baseline (없으면 null)
+ *  기수 달력에는 안 보이는 날이라 앱에서 직접 넣을 수 없어서, 동기화기가 넣어 둔 값을 읽는다. */
+function baseEntry(round, blogId) {
+  if (!round || !blogId) return null;
+  const pre = addDays(round.start_date, -1);
+  const e = dayEntry(pre, blogId);
+  if (!e) return null;
+  return { date: pre, views: Number(e.views || 0), revenue: Number(e.revenue || 0) };
+}
+
+/** 점수 설명에 쓰는 기준일 문구 — 시작 전날 기록이 있으면 그 날 */
+function baseLabel(round) {
+  const b0 = baseEntry(round, (APP.state.blogs[0] || {}).id);
+  return (b0 ? b0.date : round.start_date).replace(/-/g, '.');
+}
 function postsOf(date, bid) { return livePosts(dayEntry(date, bid)); }
 
 /** 블로그 한 곳의 기수 성적 — 점수는 '포스팅 점수 + 방문·수익 증가분'
@@ -285,6 +301,8 @@ function blogStats(blog, round) {
   let doneDays = 0, posts = 0, views = 0, revenue = 0, elapsed = 0, todayPosts = 0;
   let postScore = 0, growth = 0, postCapped = 0;
   let prev = null;                       // 전일(또는 기준일) 값
+  const b0 = baseEntry(round, blog.id);  // 기수 시작 전날(11/19) 확정 방문자 = 시작값
+  if (b0) prev = { v: b0.views, r: b0.revenue };
   const daily = [];
 
   days.forEach((d, i) => {
@@ -305,7 +323,14 @@ function blogStats(blog, round) {
 
     let grow = 0;
     if (i === 0) {
-      prev = { v: v == null ? 0 : v, r: r == null ? 0 : r };   // 기준일
+      // 기준일(기수 첫날). 시작 전날 기록이 있으면 그 값을 baseline 으로 삼아 첫날부터
+      // '전날 대비 증가분'을 센다(모바일에서 11/19 는 달력에 안 보여 손으로 못 넣기 때문).
+      if (prev) {
+        grow = Math.max(0, (v || 0) - prev.v) + Math.max(0, (r || 0) - prev.r);
+        prev = { v: v == null ? prev.v : v, r: r == null ? prev.r : r };
+      } else {
+        prev = { v: v == null ? 0 : v, r: r == null ? 0 : r };
+      }
     } else if (v != null || r != null) {
       const base = prev || { v: 0, r: 0 };
       const dv = Math.max(0, (v || 0) - base.v);
@@ -339,6 +364,8 @@ function prevVals(blogId, round, date) {
     const e = dayEntry(days[k], blogId);
     if (e) return { views: Number(e.views || 0), revenue: Number(e.revenue || 0), date: days[k] };
   }
+  const b0 = baseEntry(round, blogId);        // 기수 전날(11/19) 기록 = 1기 시작값
+  if (b0) return { views: b0.views, revenue: b0.revenue, date: b0.date };
   return { views: 0, revenue: 0, date: null };
 }
 
@@ -395,9 +422,12 @@ function growthScore(blog, round) {
   const days = roundDays(round);
   const today = kstDate();
   const elapsed = Math.max(1, days.filter((d) => d <= today).length);
+  const b0 = baseEntry(round, blog.id);
   const e1 = dayEntry(days[0], blog.id);
-  const base = { views: Number((e1 || {}).views || 0), revenue: Number((e1 || {}).revenue || 0) };
-  let last = { views: base.views, revenue: base.revenue, date: days[0] };
+  const base = b0
+    ? { views: b0.views, revenue: b0.revenue }
+    : { views: Number((e1 || {}).views || 0), revenue: Number((e1 || {}).revenue || 0) };
+  let last = { views: base.views, revenue: base.revenue, date: b0 ? b0.date : days[0] };
   let posts = 0;
   for (const d of days) {
     if (d > today) break;
@@ -605,6 +635,7 @@ function renderHome() {
         <button class="btn soft" data-go="merge">🖼️<br>이미지 합성</button>
       </div>
       <button class="btn block" style="margin-top:10px" data-act="addtoday">✏️ 오늘 글 URL 등록</button>
+      <button class="btn soft block" style="margin-top:6px" data-act="importtoday">🔄 오늘 발행글 한 번에 불러오기</button>
     </div>
 
     <div class="sec card card-pad">
@@ -744,6 +775,12 @@ function renderChallenge() {
       <div class="chip-row">${chips}</div>
     </div>
 
+    <div class="sec card card-pad">
+      <div class="sec-head"><h2>📥 오늘 발행글</h2><span class="sub">네이버 RSS · 6곳</span></div>
+      <button class="btn block" data-act="importtoday">🔄 오늘 발행글 한 번에 불러오기</button>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.55">오늘 발행한 글을 6곳에서 한 번에 찾아 달력에 넣습니다. 이미 등록된 글·지운 글은 건너뛰고, 기수 중간에 누르면 어제 빈 칸도 같이 채웁니다.</p>
+    </div>
+
     <div class="sec">
       <div class="hero">
         <div class="hero-top">
@@ -785,7 +822,7 @@ function renderChallenge() {
         <div class="nb-b">
           글 1편 = <b>1,000점</b> (하루 10편까지 인정 → 하루 최대 10,000점)<br>
           방문자 증가 1명 = <b>1점</b>, 수익 증가 1원 = <b>1점</b><br>
-          기준일(${round.start_date.replace(/-/g, '.')})의 방문자·수익을 baseline 으로 두고, 둘째 날부터 <b>전일 대비 늘어난 만큼</b>만 더합니다. 줄어든 날은 0점(감점 없음).
+          기준일(${baseLabel(round)})의 방문자·수익을 baseline 으로 두고, <b>전일 대비 늘어난 만큼</b>만 더합니다. 줄어든 날은 0점(감점 없음).
         </div>
       </div>` : `
       <div class="card rank-wrap">
@@ -801,7 +838,7 @@ function renderChallenge() {
         <div class="nb-t">성장률 순위 — 신생 블로그도 공정하게</div>
         <div class="nb-b">
           성장률 = <b>발행 달성률 × 0.6</b> + <b>방문자 증가율 × 0.3</b> + <b>수익 증가율 × 0.1</b><br>
-          발행 달성률 = 발행 편수 ÷ (하루 목표 × 경과일) · 방문자·수익 증가율은 기준일(${round.start_date.replace(/-/g, '.')}) 대비입니다.<br>
+          발행 달성률 = 발행 편수 ÷ (하루 목표 × 경과일) · 방문자·수익 증가율은 기준일(${baseLabel(round)}) 대비입니다.<br>
           각 항목은 0~300% 로 자른 뒤 합산합니다. 규모가 작은 블로그도 성장만 크면 1위가 될 수 있어요.
         </div>
       </div>`}
@@ -1775,6 +1812,136 @@ async function refreshMat(tab, btn) {
   }
 }
 
+/* ───────────────── 🔄 오늘 발행글 한 번에 불러오기 (2026-11-20 추가) ─────────────────
+   네이버 블로그 6곳의 RSS(rss.blog.naver.com/{id}.xml)를 브라우저가 직접 읽어,
+   '오늘'과 '기수 안의 어제' 발행 글을 인증 달력에 자동 등록한다.
+   · 네이버 RSS 는 CORS 를 열지 않아서 프록시를 순서대로 시도한다.
+       1) api.allorigins.win/raw   → XML 원문(가장 정확 · 발행 시각 원본)
+       2) api.allorigins.win/get   → JSON.contents
+       3) api.rss2json.com         → JSON(pubDate 가 UTC 로 와서 +9시간 보정)  ※ 새 피드가 많으면 속도 제한
+   · 발행 시각은 KST 로 바꿔 날짜를 정하고, 이미 등록된 주소·지운 글(tombstone)은 건너뛴다.
+   · 점수 규칙(하루 10편까지 인정)을 넘지 않게만 채운다. */
+const RSS_PROXY_RAW = (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u);
+const RSS_PROXY_GET = (u) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u);
+const RSS2JSON_URL = (u) => 'https://api.rss2json.com/v1/api.json?count=20&rss_url=' + encodeURIComponent(u);
+
+/** 주소 정규화 — 같은 글을 다른 주소로 두 번 등록하지 않게 (쿼리·모바일 도메인 제거) */
+function urlKey(u) {
+  const s = String(u || '').trim().split('#')[0].split('?')[0].replace(/\/+$/, '');
+  return s.replace(/^http:\/\//i, 'https://').replace(/^https:\/\/m\.blog\.naver\.com\//i, 'https://blog.naver.com/');
+}
+
+/** RSS pubDate('Fri, 20 Nov 2026 08:30:00 +0900') → KST 'YYYY-MM-DD HH:MM' */
+function rssDateKst(txt) {
+  if (!txt) return null;
+  const t = Date.parse(String(txt).replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+  if (!isFinite(t)) return null;
+  return new Date(t + KST_OFF).toISOString().slice(0, 16);
+}
+
+/** 네이버 블로그 RSS XML → [{title, url, at(KST)}] */
+function parseRssXml(xml) {
+  if (!xml) return [];
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  if (!doc || doc.getElementsByTagName('parsererror').length) throw new Error('XML 형식 아님');
+  const out = [];
+  for (const it of Array.from(doc.getElementsByTagName('item'))) {
+    const pick = (tag) => {
+      try {
+        const el = it.getElementsByTagName(tag)[0];
+        return el ? String(el.textContent || '').trim() : '';
+      } catch { return ''; }
+    };
+    const title = pick('title').replace(/\s+/g, ' ');
+    const url = urlKey(pick('guid') || pick('link'));
+    const at = rssDateKst(pick('pubDate') || pick('dc:date'));
+    if (title && url && at) out.push({ title, url, at });
+  }
+  return out;
+}
+
+/** rss2json 응답 → [{title, url, at(KST)}] (pubDate 는 UTC 로 온다) */
+function parseRssJson(j) {
+  if (!j || j.status !== 'ok') throw new Error('RSS ' + ((j && j.status) || '실패'));
+  const out = [];
+  for (const it of j.items || []) {
+    const title = String(it.title || '').replace(/\s+/g, ' ').trim();
+    const url = urlKey(it.link);
+    const t = Date.parse(String(it.pubDate || '').replace(' ', 'T') + 'Z');
+    if (!title || !url || !isFinite(t)) continue;
+    out.push({ title, url, at: new Date(t + KST_OFF).toISOString().slice(0, 16) });
+  }
+  return out;
+}
+
+/** 블로그 한 곳의 최신 글 — 프록시 3단계 폴백 */
+async function fetchBlogPosts(handle) {
+  const rss = 'https://rss.blog.naver.com/' + handle + '.xml';
+  const errs = [];
+  const tryStep = async (label, fn) => {
+    try {
+      const rows = await fn();
+      if (rows && rows.length) return rows;
+      errs.push(label + ' 빈 응답');
+    } catch (e) { errs.push(label + ' ' + String((e && e.message) || e).slice(0, 24)); }
+    return null;
+  };
+  let rows = await tryStep('원문', async () => parseRssXml(await fetchText(RSS_PROXY_RAW(rss), 25000)));
+  if (!rows) rows = await tryStep('대체', async () => { const j = JSON.parse(await fetchText(RSS_PROXY_GET(rss), 25000)); return parseRssXml((j && j.contents) || ''); });
+  if (!rows) rows = await tryStep('rss2json', async () => parseRssJson(JSON.parse(await fetchText(RSS2JSON_URL(rss), 20000))));
+  if (!rows) throw new Error(errs.join(' / ') || '결과 없음');
+  return rows;
+}
+
+/** 6곳을 한 번에 불러와 오늘(및 기수 안의 어제) 글을 자동 등록 */
+async function importTodayPosts(btn) {
+  const s = APP.state, round = activeRound();
+  if (!s || !round) return;
+  const label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.dataset.busy = '1'; btn.textContent = '⏳ 6곳 불러오는 중…'; }
+
+  const today = kstDate();
+  const dates = [today];
+  const yest = addDays(today, -1);
+  if (roundDays(round).includes(yest)) dates.push(yest);   // 기수 안의 어제 글도 빈 칸이면 채운다
+
+  const got = await Promise.allSettled(s.blogs.map((b) => fetchBlogPosts(b.handle || b.id)));
+  const parts = [], fails = [];
+  let total = 0, skipped = 0, over = 0;
+
+  got.forEach((r, i) => {
+    const b = s.blogs[i];
+    if (r.status !== 'fulfilled') { fails.push(b.name); return; }
+    let added = 0;
+    const items = r.value.slice().sort((a, c) => String(a.at).localeCompare(String(c.at)));   // 발행 순서대로
+    for (const it of items) {
+      const d = it.at.slice(0, 10);
+      if (!dates.includes(d)) continue;
+      if (s.removed && s.removed[it.url]) { skipped++; continue; }        // 지운 글은 되살리지 않는다
+      if (findUrl(it.url)) { skipped++; continue; }                       // 이미 등록된 글
+      const e = ensureEntry(d, b.id);
+      if (livePosts(e).length >= DAY_POST_CAP) { over++; continue; }      // 점수 인정 한도
+      e.posts.push({ url: it.url, title: it.title, at: it.at + '+09:00', src: 'rss' });
+      e.ts = Date.now();                                                 // 동기화에서 이 기록이 이기게
+      added++; total++;
+    }
+    if (added) parts.push(b.name + ' ' + added + '편');
+  });
+
+  if (btn) { btn.disabled = false; delete btn.dataset.busy; btn.textContent = label || '🔄 오늘 발행글 한 번에 불러오기'; }
+
+  if (total) {
+    saveLocal(); queuePush(); renderAll();
+    const head = parts.slice(0, 3).join(' · ') + (parts.length > 3 ? ' 등' : '');
+    toast(head + ' 총 ' + total + '편 불러왔어요' + (fails.length ? ' · ' + fails.length + '곳은 다시' : ''));
+  } else if (fails.length) {
+    toast(fails.length + '곳을 못 불러왔어요 · 잠시 뒤 다시 눌러 주세요');
+  } else {
+    toast(over ? '오늘 치는 다 찼어요' : '새로 등록할 글이 없어요 · 이미 다 등록됐어요');
+  }
+  return { total, parts, fails, skipped, over };
+}
+
 /* ───────────────────────── 시트 ───────────────────────── */
 function openSheet(title, bodyHtml, footHtml) {
   $('#sheetTitle').textContent = title;
@@ -2058,6 +2225,12 @@ function bindEvents() {
     if (addToday) {
       const b = addToday.dataset.blog;
       openAdd(b || (APP.ui.blog !== 'all' ? APP.ui.blog : null), kstDate()); return;
+    }
+
+    const impToday = t.closest('[data-act="importtoday"]');
+    if (impToday) {
+      if (impToday.dataset.busy) return;
+      importTodayPosts(impToday); return;
     }
 
     const del = t.closest('[data-del]');
