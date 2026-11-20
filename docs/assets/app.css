@@ -604,6 +604,18 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .sug-item .sug-btns button:active{background:var(--pink-soft)}
 .sc-coach li{margin:5px 0}
 .sc-coach b{color:var(--rose-dark)}
+/* 7기 2회차 — 주제 유형 + 좋은 제목 체크 4가지 */
+.sc-type{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:11.5px;line-height:1.5}
+.sc-type .tp{flex:0 0 auto;font-weight:800;color:var(--rose-dark);background:var(--pink-soft);border-radius:999px;padding:3px 9px}
+.sc-type .tx{color:var(--muted);font-weight:600;word-break:keep-all}
+.sc-check{margin-top:11px;background:var(--cream);border:1px solid var(--blush);border-radius:12px;padding:10px 11px}
+.sc-check h4{font-size:11.5px;margin:0 0 6px;color:var(--brown)}
+.sc-check ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.sc-check li{font-size:11.5px;line-height:1.55;color:var(--brown-2)}
+.sc-check li b{display:block;font-weight:800}
+.sc-check li span{display:block;color:var(--muted);margin-top:1px;word-break:keep-all}
+.sc-check li.ok b{color:var(--ok)}
+.sc-check li.no b{color:#C0703A}
 @media(min-width:980px){
   .mat-split{grid-template-columns:minmax(0,1fr) 340px;gap:18px}
   .mat-side{position:sticky;top:74px}

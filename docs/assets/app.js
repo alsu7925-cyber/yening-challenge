@@ -1315,7 +1315,8 @@ function downloadCsv(scope) {
 }
 
 /* ───────────────────────── 🎯 홈판 제목 점수기 ─────────────────────────
-   6기 홈판 제목 원칙을 그대로 점수화한다. API 호출 없음 · 브라우저 안에서만 계산.
+   6기 홈판 제목 원칙 + 7기 2회차(앞 열 글자 후킹 · 뒤 검색 키워드 · 결말 숨기기)를 점수화한다.
+   API 호출 없음 · 브라우저 안에서만 계산.
    (1) 앞부분 후킹 40 · (2) 구체성 25 · (3) 검색형·구조 20 · (4) 길이 15 = 100 */
 /* ==== SCORER-CORE BEGIN ==== */
 const TS_DICT = {
@@ -1426,6 +1427,64 @@ function tsTrim(s, max) {
   return tsNorm(ws.join(' '));
 }
 
+/* ── 7기 2회차(2026-11-20 라이브) 기준 ──────────────────────────────
+   · 홈판은 0.5초. 사진 한 장 + 제목 '앞 열 글자'로 클릭이 갈린다.
+   · 7기 제목 공식 = 조합 제목 → 앞은 홈판형 후킹(멈추게) / 뒤는 검색형 키워드 원형 그대로(걸리게)
+   · 주제마다 먹히는 후킹이 다르다 → 이슈형 · 정보형 · 상업형
+   · 결말(정답)을 제목에서 말해 버리면 들어갈 이유가 사라진다
+   강사님이 보여 준 '앞에 붙는 후킹 6종'
+   ①유명인·대상 감추기 ②숫자·가격 반전 ③계급과 순위 ④1인칭 썰·고백 ⑤공분·황당 ⑥질문으로 끝내기 */
+const TS_HOOK = {
+  hide: ['정체', '이거', '이것', '그것', '그 여배우', '그 배우', '그 가수', '어떤', '무슨', '누구',
+    '뜻밖의', '의외의', '얼마', '몇 가지', '가지', '모음', '리스트', '무엇', '어디'],
+  rank: ['서열', '계급도', '계급', '순위', '등급', '레벨', '몇 위', '1위', '2위', '3위', '상위', '하위'],
+  first: ['했더니', '갔더니', '봤더니', '샀더니', '맡겼', '써보니', '해보니', '당했', '날렸',
+    '썼더니', '먹었더니', '신청했', '들어갔더니', '넣었는데', '바꿨더니', '해봤'],
+  speed: ['오늘', '방금', '지금', '속보', '급', '결국', '3일', '이틀', '하루', '새벽', '당장', '이번 주', '이번주'],
+  shock: ['충격', '경악', '논란', '후회', '손해', '조심', '위험', '아찔', '황당', '실화', '대박', '헐',
+    '레전드', '터졌', '난리', '폭로', '해명', '눈물', '소름', '말도 안', 'ㄷㄷ', '빅엿',
+    '놀라', '멈췄', '당황', '깜짝', '기가', '못 알아', '어이', '뜯었', '얼떨', '뻘쭘', '싶어'],
+  turn: ['아니라', '반대로', '오히려', '그런데', '근데', '인 줄', '줄 알았', '근황', '바뀐', '달라진'],
+  person: ['여배우', '배우', '가수', '아이돌', '모델', '감독', '선수', '코치', '대표', '사장',
+    '유튜버', '인플루언서', '연예인', '셀럽', '전문의', '의사'],
+  /* 내 몸 얘기 — "어? 나도 그런데?" 싶게 만드는 증상 인식형 후킹 */
+  sym: ['아랫배', '윗배', '통증', '가스', '두통', '어지럼', '피로', '붓기', '기침', '숨이',
+    '소화', '변비', '설사', '눈가', '주름', '탈모', '체중', '혈당', '혈압', '수치', '증상',
+    '가슴', '허리', '무릎', '어깨', '목', '손발', '얼굴'],
+};
+/* 검색 키워드 — 사람들이 실제로 검색창에 치는 말 (뒤에 '원형 그대로' 붙여야 한다) */
+const TS_KW = TS_DICT.SEARCH.concat(['증상', '원인', '치료', '일정', '대진표', '가격', '보험료', '상한액',
+  '기준', '계산', '신청', '마감', '지원금', '보조금', '세금', '연말정산', '환율', '주가', '전세', '대출',
+  '금리', '효능', '부작용', '성분', '칼로리', '레시피', '코디', '사이즈', '비용', '수수료', '공제',
+  '환급', '연금', '급여', '봉급표', '실수령', '학원', '유치원', '놀이터', '코스트코', '다이소', '이케아']);
+/* 주제 → 3묶음 (이슈형 / 정보형 / 상업형) */
+const TS_TYPE_OF = {
+  sports: 'issue', celeb: 'issue',
+  health: 'info', parenting: 'info', food: 'info', generic: 'info',
+  money: 'money', tech: 'money',
+};
+const TS_TYPE_LABEL = { issue: '이슈형', info: '정보형', money: '상업형' };
+const TS_TYPE_ICON = { issue: '⚡', info: '📚', money: '💰' };
+const TS_TYPE_HOOK = {
+  issue: '속도 · 숫자 반전 · 정체 숨기기로 0.5초에 멈추게',
+  info: '뒤 검색 키워드가 바닥 — 앞은 이슈형처럼 숫자·연예인·숨기기',
+  money: '숫자 · 가격 반전 + 제목 뒤에 돈 키워드(연금·세금·차값·보험료)',
+};
+const TS_TYPE_COACH = {
+  issue: '이슈형은 속도전입니다. "방금·결국·3일 만에" 같은 속도 말이나 "그 여배우 정체"처럼 대상을 감춰서 0.5초에 멈추게 하세요.',
+  info: '정보형은 뒤에 붙는 검색 키워드가 바닥입니다. 앞은 숫자·연예인·숨기기로 멈추게 하고, 뒤에는 사람들이 실제로 치는 말을 원형 그대로 붙이세요.',
+  money: '상업형은 숫자가 곧 후킹입니다. "○만 원" 같은 금액 반전을 앞에 두고, 뒤에 연금·세금·차값처럼 돈이 걸린 키워드를 붙이면 같은 방문자라도 단가가 높아집니다.',
+};
+function tsType(kind) { return TS_TYPE_OF[kind] || 'info'; }
+
+/* 결말(정답)을 말해 버린 제목 — 강의 예시
+   ✗ 롱패딩 세탁기에 돌려도 됩니다, 롱패딩 셀프 세탁 방법
+   ✓ 세탁기에 그냥 돌려도 될까? 롱패딩 셀프 세탁 방법 */
+const TS_SPOIL_END = /(됩니다|합니다|입니다|습니다|된다|이다|했다|됐다|드립니다|하세요|하십시오|좋습니다|괜찮습니다|맞습니다|낫다|해야 한다|해야한다)[\s.…,]*$/;
+const TS_SPOIL_WORD = ['정답은', '결론은', '결말은', '결과는', '답은', '괜찮습니다', '돌려도 됩니다',
+  '해도 됩니다', '먹어도 됩니다', '마셔도 됩니다', '쓰면 됩니다', '하면 됩니다'];
+const TS_CURIO = /(\?|까\s*$|나\s*$|나요|는데\s*$|다는데|을까|ㄹ까|였나|인가|지금\s)/;
+
 function scoreHomeTitle(raw, forceKind) {
   const title = tsNorm(raw);
   const chars = tsChars(title);
@@ -1437,99 +1496,176 @@ function scoreHomeTitle(raw, forceKind) {
   const soft = ycSoft(title);
   /* 주제(자동 판단 또는 칩에서 고른 것) — 훅·코칭·추천이 이걸 따른다 */
   const kind = (forceKind && forceKind !== 'auto') ? forceKind : tsKind(title);
-  const front = chars.slice(0, 13).join('');
-  const head = chars.slice(0, 18).join('');
+  const type = tsType(kind);
+  const head10 = chars.slice(0, 10).join('');
+  const head18 = chars.slice(0, 18).join('');
   const good = [];
   const fix = [];
   const tips = [];
   const toks = tsTokens(title);
-
-  /* ── (1) 앞부분 후킹 40 ── */
-  let hook = 8;
-  const quoted = /^["'“”‘’「『]/.test(title);
-  const emo = tsHit(head, TS_DICT.EMO);
-  const numFront = /\d/.test(head);
-  const contr = tsHit(head, TS_DICT.CONTR);
-  const qm = /[?!]|ㅋㅋ|ㅎㅎ/.test(head);
-  const rhyme = tsRhyme(title);
-  const rhymeStrong = !!rhyme && (quoted || emo.length > 0 || qm);
-  const frontPlain = !quoted && !numFront && !emo.length && !contr.length && !qm;
-
-  if (quoted) { hook += 10; good.push('따옴표 대화체로 시작해서 스크롤하다 눈이 먼저 멈춰요.'); }
-  if (emo.length) { hook += 8; good.push('앞부분 "' + emo[0] + '" 한마디가 도발·궁금증을 만들어요.'); }
-  if (numFront) { hook += 8; good.push('앞부분 숫자가 "얼마나·언제"라는 구체적인 기대를 만듭니다.'); }
-  if (contr.length) { hook += 5; good.push('앞부분 "' + contr[0] + '"가 들어가 앞뒤를 견주는 흐름이 있어요.'); }
-  if (qm) { hook += 4; good.push('물음표·감탄·ㅋㅋ 같은 말투가 살아 있어 말하듯 읽혀요.'); }
-  if (rhymeStrong) { hook += 5; good.push('"' + rhyme + '"처럼 반복되는 말장난이 리듬을 만들어요.'); }
-  if (frontPlain) {
-    hook -= 7;
-    fix.push('홈판 카드에 주로 보이는 앞부분 "' + front.trim() + '"이(가) 얌전해서 클릭을 부르는 힘이 약해요. 가격 반전·감탄 한마디나 도발적인 질문을 맨 앞에 넣어 보세요.');
-  }
-  hook = tsClamp(hook, 0, 40);
-
-  /* ── (2) 구체성 25 ── */
-  let con = 10;
   const hasNum = /\d/.test(title);
+
+  /* ── 제목 쪼개기: 앞(후킹) / 뒤(검색 키워드) ───────────────────
+     세로줄(|)이 있으면 그 자리, 없으면 마지막 검색 키워드 자리에서 자른다 */
+  const barAt = Math.max(title.indexOf('|'), title.indexOf('｜'));
+  let frontSeg = title, tailSeg = '', hasBar = barAt > 0;
+  if (hasBar) { frontSeg = title.slice(0, barAt).trim(); tailSeg = title.slice(barAt + 1).trim(); }
+  else {
+    let at = -1;
+    TS_KW.forEach((w) => { const i = title.lastIndexOf(w); if (i > at && i >= 6) at = i; });
+    if (at > 0) { frontSeg = title.slice(0, at).trim(); tailSeg = title.slice(at).trim(); }
+  }
+
+  /* ── (1) 앞 10글자 후킹 40 ────────────────────────────────────
+     강의 기준은 '앞 열 글자'. 다만 실제 메인에 뜬 제목도 가장 센 말이
+     12~20자에 걸리는 경우가 많아서, 열 글자 안쪽은 만점 가중, 20자 안쪽은 60% 가중으로 본다. */
+  const headSeg = chars.slice(0, 20).join('');
+  const hitAt = (arr) => {
+    const a10 = tsHit(head10, arr), a20 = tsHit(headSeg, arr);
+    if (a10.length) return { w: a10[0], full: true };
+    if (a20.length) return { w: a20[0], full: false };
+    return { w: '', full: false };
+  };
+  const w1 = (o) => (o.w ? (o.full ? 1 : 0.6) : 0);
+  let hook = 10;
+  const numF = /\d/.test(head10) ? { w: (head10.match(/\d[\d,.만억천]*/) || [''])[0], full: true }
+    : (/\d/.test(headSeg) ? { w: (headSeg.match(/\d[\d,.만억천]*/) || [''])[0], full: false } : { w: '', full: false });
+  const hideF = hitAt(TS_HOOK.hide);
+  const rankF = hitAt(TS_HOOK.rank);
+  const firstF = hitAt(TS_HOOK.first);
+  const speedF = hitAt(TS_HOOK.speed);
+  const shockF = hitAt(TS_HOOK.shock);
+  const turnF = hitAt(TS_HOOK.turn);
+  const personF = hitAt(TS_HOOK.person);
+  const symF = hitAt(TS_HOOK.sym);
+  const qm = /[?!]|ㅋㅋ|ㅎㅎ|ㄷㄷ/.test(headSeg);
+  const quoted = /["'“”‘’「『]/.test(headSeg);
+  const dots = /(\.\.|…)/.test(headSeg);
+  const comma = /[,·]/.test(headSeg);
+  const frontSearch = tsHit(head10, TS_KW);
+  hook += 10 * w1(numF);
+  hook += 9 * w1(hideF.w ? hideF : personF);
+  hook += 7 * w1(symF);
+  hook += 7 * w1(firstF);
+  hook += 6 * w1(rankF);
+  hook += 6 * w1(shockF);
+  hook += 5 * w1(speedF);
+  hook += 5 * w1(turnF);
+  if (qm) hook += 5;
+  /* 말줄임·따옴표·쉼표 = '이야기'를 여는 신호 — 홈판 제목 절반이 이 모양이다 */
+  const story = (quoted ? 1 : 0) + (dots ? 1 : 0);
+  if (story) hook += 4 * story;
+  if (comma) hook += 2;
+  const hookParts = [numF, hideF, personF, symF, firstF, rankF, shockF, speedF, turnF]
+    .filter((o) => o.w).length + (qm ? 1 : 0) + (story ? 1 : 0);
+  const nearHook = numF.w || hideF.w || personF.w || symF.w || firstF.w || rankF.w || shockF.w || speedF.w || turnF.w;
+  /* 실제 메인에 오른 제목들이 갖추는 최소선 — 재료가 둘 이상이면 바닥을 깔아 준다 */
+  if (hookParts >= 2 || (hookParts >= 1 && (numF.w || symF.w || hideF.w || personF.w))) hook = Math.max(hook, 26);
+  else if (hookParts >= 1) hook = Math.max(hook, 18);
+  if (numF.w) good.push('앞부분 숫자(' + numF.w + ')가 "얼마·언제"라는 기대를 바로 만듭니다.');
+  if (hideF.w) good.push('앞부분 "' + hideF.w + '"로 대상·정체를 감춰서 누르게 만듭니다.');
+  else if (personF.w) good.push('앞부분 "' + personF.w + '"가 나와서 누구 얘기인지 궁금해집니다.');
+  if (symF.w) good.push('"' + symF.w + '" — 어? 나도 그런데? 싶게 내 몸 얘기로 읽힙니다.');
+  if (firstF.w) good.push('"' + firstF.w + '" — 1인칭 썰로 시작해 남 얘기가 내 얘기처럼 들립니다.');
+  if (rankF.w) good.push('"' + rankF.w + '" — 계급·순위 구도가 비교 심리를 건드립니다.');
+  if (shockF.w) good.push('"' + shockF.w + '" 한마디가 도발·공분을 만들어요.');
+  if (speedF.w) good.push('"' + speedF.w + '" — 속도감 있는 말이 홈판 이슈형에 맞습니다.');
+  if (turnF.w) good.push('"' + turnF.w + '" — 앞뒤를 뒤집는 반전 말이 들어 있어요.');
+  if (qm) good.push('물음표·말투가 살아 있어 말하듯 읽혀요.');
+  if (frontSearch.length && !hookParts) {
+    hook -= 8;
+    fix.push('앞 열 글자가 검색어("' + frontSearch[0] + '")로 시작합니다. 홈판은 앞 열 글자만 보고 0.5초에 결정하니, 그 자리에는 검색어 대신 후킹을 두고 검색어는 뒤로 보내세요.');
+  } else if (!nearHook && !story) {
+    hook -= 5;
+    fix.push('앞 스무 글자 "' + headSeg.trim() + '"에 0.5초에 손을 멈추게 할 말(숫자·연예인·정체 숨기기·내 몸 얘기·질문·말줄임)이 없어요. 가장 센 말을 맨 앞으로 끌어오세요.');
+  } else if (!numF.full && !hideF.full && !symF.full && !shockF.full && hook < 30) {
+    fix.push('후킹 재료가 열 글자 살짝 뒤에 있습니다. 지금도 읽히지만, 그 말을 열 글자 안으로 당기면 0.5초 판정에서 훨씬 유리해요.');
+  }
+  hook = tsClamp(Math.round(hook), 0, 40);
+
+  /* ── (2) 구체성 20 ─────────────────────────────────────────── */
+  let con = 9;
   const unit = TS_DICT.UNIT_RE.test(title);
   const qContent = (title.match(/["“「『]([^"”」』]{4,})["”」』]/) || [])[1] || '';
   const names = toks.filter((t) => tsChars(t).length >= 2 && !/^\d+$/.test(t) && TS_DICT.ALL.indexOf(t) < 0);
-  if (hasNum) { con += 7; good.push('숫자가 들어가서 기대치가 구체적이에요.'); }
-  if (unit) con += 4;
-  if (qContent) con += 3;
-  con += Math.min(7, names.length * 2);
+  if (hasNum) con += 5;
+  if (unit) con += 3;
+  if (qContent) con += 2;
+  con += Math.min(5, names.length * 2);
   const abs = tsHit(title, TS_DICT.ABSTRACT);
   if (abs.length && !hasNum && !unit && names.length < 2) {
-    con -= 8;
-    fix.push('"' + abs[0] + '" 같은 말만 있고 무엇이 그런지 알려 줄 구체 대상(가격·메뉴·맛·수치·증상·기간)이 없어 모호해요.');
+    con -= 6;
+    fix.push('"' + abs[0] + '" 같은 말만 있고 무엇이 그런지 알려 줄 구체 대상(가격·메뉴·수치·증상·기간)이 없어 모호해요.');
   }
-  con = tsClamp(con, 0, 25);
+  con = tsClamp(con, 0, 20);
 
-  /* ── (3) 검색형·구조 20 ── */
-  let st = 10;
-  const frontSearch = tsHit(front, TS_DICT.SEARCH);
-  const allSearch = tsHit(title, TS_DICT.SEARCH);
-  const searchCount = TS_DICT.SEARCH.reduce((n, w) => n + (title.split(w).length - 1), 0);
-  const tailNames = toks.filter((t) => tsChars(t).length >= 3 && TS_DICT.ALL.indexOf(t) < 0 && !/^\d+$/.test(t));
-  const frontHooky = quoted || emo.length > 0 || numFront || qm || contr.length > 0;
-  if (frontSearch.length) {
-    st -= 7;
-    fix.push('앞부분이 검색형 키워드("' + frontSearch[0] + '")로 시작해서 홈판 피드에선 스쳐 지나갈 수 있어요. 검색 키워드는 뒤로 빼고 앞에는 후킹 문구를 붙이세요.');
-  }
-  if (searchCount >= 3) {
-    st -= 4;
-    fix.push('검색형 키워드가 ' + searchCount + '개 붙어 있어 나열처럼 보여요. 제일 센 것 1~2개만 남기면 훨씬 또렷해져요.');
-  }
-  if (!frontSearch.length && frontHooky && (allSearch.length || tailNames.length)) {
+  /* ── (3) 뒤 검색 키워드 원형 20 ────────────────────────────── */
+  let st = 9;
+  const allKw = tsHit(title, TS_KW);
+  const kwCount = TS_KW.reduce((n, w) => n + (title.split(w).length - 1), 0);
+  const tailKw = tsHit(tailSeg || '', TS_KW);
+  const lastKwAt = allKw.length ? title.lastIndexOf(allKw[allKw.length - 1]) : -1;
+  const kwAtEnd = tailKw.length > 0 || (allKw.length > 0 && lastKwAt >= Math.floor(len * 0.45));
+  if (hasBar) { st += 4; good.push('세로줄(|)로 앞(후킹)과 뒤(검색 키워드)를 갈라 놨습니다 — 7기 공식을 가장 노골적으로 쓰는 방식이에요.'); }
+  if (tailKw.length || kwAtEnd) {
     st += 8;
-    good.push('앞은 후킹, 뒤는 ' + (allSearch.length ? '검색 키워드("' + allSearch[0] + '")' : '고유명사') + ' 조합이 잘 잡혀 있어요.');
-  } else if (!frontSearch.length && frontHooky) {
-    st += 4;
+    good.push('뒤쪽에 검색 키워드("' + (tailKw[0] || allKw[0]) + '")가 원형 그대로 살아 있어서, 메인에서 내려간 뒤에도 검색으로 계속 들어옵니다.');
+  } else if (allKw.length) {
+    st += 3;
+    fix.push('검색 키워드("' + allKw[0] + '")가 앞쪽에 있습니다. 앞은 후킹, 뒤는 키워드로 순서를 바꾸면 검색 유입까지 같이 잡혀요.');
+  } else if (type === 'issue') {
+    st = Math.max(st, 10);
+    tips.push('이슈형은 속도전이라 검색 키워드 없이 가는 제목도 있습니다. 그래도 뒤에 그 이슈의 검색어를 하나 붙이면 하루 이틀 뒤 바닥이 생겨요.');
+  } else {
+    fix.push('뒤에 사람들이 실제로 검색하는 말(증상·일정·방법·가격·후기 등)이 없습니다. 검색으로 들어올 단어가 없으면 메인에서 내려오는 순간 끝나요.');
+  }
+  if (!hasBar && !frontSearch.length && kwCount >= 4) {
+    st -= 3;
+    fix.push('검색 키워드가 ' + kwCount + '개 붙어 나열처럼 보여요. 세로줄(|)로 앞뒤를 나누고 1~2개만 남기세요.');
   }
   st = tsClamp(st, 0, 20);
 
-  /* ── (4) 길이·가독성 15 ── */
-  let ln;
-  if (len < 16) { ln = 4; fix.push('제목이 ' + len + '자로 너무 짧아요. 검색 키워드도 같이 담기지 못해요(22~42자 권장).'); }
-  else if (len < 22) { ln = 9; fix.push('조금 짧아요(' + len + '자). 핵심 키워드 하나를 더 붙이면 22~42자에 들어갑니다.'); }
-  else if (len <= 44) ln = 15;
-  else if (len <= 50) { ln = 10; fix.push('조금 길어요(' + len + '자). 모바일 카드에선 잘려 보이니 44자 안쪽을 권해요.'); }
-  else { ln = 5; fix.push('너무 길어요(' + len + '자). 모바일 홈판 카드에서 뒷부분이 잘려 보여요.'); }
+  /* ── (4) 결말 숨기기 10 ────────────────────────────────────── */
+  const spoils = TS_SPOIL_WORD.filter((w) => frontSeg.indexOf(w) >= 0);
+  const spoilEnd = TS_SPOIL_END.test(frontSeg);
+  const spoiled = spoils.length > 0 || spoilEnd;
+  const curio = TS_CURIO.test(frontSeg) || !!hideF.w || dots;
+  let hide = 6;
+  if (curio) hide += 3;
+  if (hideF.w) hide += 2;
+  if (spoiled) hide -= 7;
+  hide = tsClamp(hide, 0, 10);
+  if (spoiled) {
+    fix.push('결말을 제목에서 말해 버렸어요("' + (spoils[0] || (frontSeg.match(TS_SPOIL_END) || [''])[0] || '서술형 마무리') + '"). 답을 알려 주면 들어갈 이유가 사라집니다. 제목은 궁금하게, 답은 본문에서 — 질문으로 바꿔 보세요.');
+  } else if (curio) {
+    good.push('앞부분이 질문·궁금증으로 끝나서 "답을 알아야겠다"는 마음이 남습니다.');
+  }
 
-  const total = tsClamp(hook + con + st + ln, 0, 100);
+  /* ── (5) 길이·가독성 10 (7기 조합 제목은 길어도 뜬다) ───────── */
+  let ln;
+  if (len < 16) { ln = 2; fix.push('제목이 ' + len + '자로 너무 짧아요. 뒤에 검색 키워드가 들어갈 자리가 없습니다(22~60자 권장).'); }
+  else if (len < 22) { ln = 6; fix.push('조금 짧아요(' + len + '자). 뒤에 검색 키워드 하나만 더 붙이면 22~60자에 들어갑니다.'); }
+  else if (len <= 48) ln = 10;
+  else if (len <= 80) ln = 9;
+  else if (len <= 100) { ln = 6; fix.push('꽤 길어요(' + len + '자). 조합 제목은 길어도 되지만 앞 열 글자 뒤 수식어부터 덜어 내세요.'); }
+  else { ln = 3; fix.push('너무 길어요(' + len + '자). 모바일 홈판 카드에서 뒷부분이 잘려 보입니다.'); }
+
+  const total = tsClamp(hook + con + st + hide + ln, 0, 100);
   const parts = [
-    { key: 'hook', label: '앞부분 후킹', score: hook, max: 40 },
-    { key: 'con', label: '구체성', score: con, max: 25 },
-    { key: 'st', label: '검색형·구조', score: st, max: 20 },
-    { key: 'ln', label: '길이·가독성', score: ln, max: 15 },
+    { key: 'hook', label: '앞 10글자 후킹', score: hook, max: 40 },
+    { key: 'con', label: '구체성', score: con, max: 20 },
+    { key: 'st', label: '뒤 검색 키워드', score: st, max: 20 },
+    { key: 'hide', label: '결말 숨기기', score: hide, max: 10 },
+    { key: 'ln', label: '길이·가독성', score: ln, max: 10 },
   ];
   const weakest = parts.slice().sort((a, b) => (a.score / a.max) - (b.score / b.max))[0];
 
   let grade, gradeMsg;
-  if (total >= 90) { grade = 'S'; gradeMsg = '지금 그대로 홈판 카드로 써도 좋아요.'; }
-  else if (total >= 80) { grade = 'A'; gradeMsg = '홈판 카드에서 충분히 힘이 있어요.'; }
-  else if (total >= 70) { grade = 'B'; gradeMsg = '잘 읽히는데, 한 군데만 더 조이면 확 올라가요.'; }
-  else if (total >= 55) { grade = 'C'; gradeMsg = '홈판용으론 아쉬워요. 앞부분부터 손보면 좋아요.'; }
-  else if (frontSearch.length || searchCount >= 3) { grade = 'D'; gradeMsg = '홈판보다 검색용 제목에 가까워요. 앞부분을 후킹으로 바꾸면 점수가 크게 올라요.'; }
+  if (total >= 85) { grade = 'S'; gradeMsg = '지금 그대로 홈판 카드로 써도 좋아요.'; }
+  else if (total >= 76) { grade = 'A'; gradeMsg = '홈판 카드에서 충분히 힘이 있어요.'; }
+  else if (total >= 66) { grade = 'B'; gradeMsg = '잘 읽히는데, 한 군데만 더 조이면 확 올라가요.'; }
+  else if (total >= 50) { grade = 'C'; gradeMsg = '홈판용으론 아쉬워요. 앞부분부터 손보면 좋아요.'; }
+  else if (frontSearch.length || kwCount >= 3) { grade = 'D'; gradeMsg = '홈판보다 검색용 제목에 가까워요. 앞부분을 후킹으로 바꾸면 점수가 크게 올라요.'; }
   else if (len < 22) { grade = 'D'; gradeMsg = '짧고 얌전해서 피드에서 잘 안 눈에 띄어요.'; }
   else { grade = 'D'; gradeMsg = '앞부분이 얌전해서 피드에서 묻히기 쉬워요.'; }
 
@@ -1537,91 +1673,108 @@ function scoreHomeTitle(raw, forceKind) {
   const summary = gradeMsg + (wr >= 0.82 ? ''
     : (total >= 80 ? ' 굳이 더 얹자면 ' : ' 가장 아쉬운 곳은 ') + weakest.label + '(' + weakest.score + '/' + weakest.max + ')이에요.');
 
-  /* ── 💡 아쉬운 점 · 이렇게 보완해 보세요 (항상 3줄 이상) ── */
-  const frontTxt = front.trim();
-  const coach = [];
-  const pr = { hook: hook / 40, con: con / 25, st: st / 20, ln: ln / 15 };
+  /* ── ✅ 좋은 제목 체크 4가지 (강의 체크리스트) ──────────────── */
+  const hasCelebFront = !!personF.w || !!hideF.w;
+  const kwOk = (tailKw.length > 0 || kwAtEnd) && !frontSearch.length;
+  const checks = [
+    { ok: hookParts > 0 && hook >= 22, label: '① 앞 열 글자에서 멈추나',
+      hint: (hookParts > 0 && hook >= 22) ? '멈추게 하는 재료가 앞에 있어요: ' + [numF.w, hideF.w, personF.w, symF.w, rankF.w, firstF.w, shockF.w, speedF.w].filter(Boolean).join(' · ')
+        : (hookParts > 0 ? '재료는 있지만 열 글자 살짝 뒤에 있어요. 그 말을 앞으로 당기세요.' : '숫자 · 연예인 · 정체 숨기기 · 질문 중 하나를 맨 앞에 붙이세요.') },
+    { ok: kwOk || (type === 'issue' && !allKw.length), label: '② 뒤에 검색 키워드가 원형 그대로 있나',
+      hint: kwOk ? '뒤에 검색 키워드("' + (tailKw[0] || allKw[0]) + '")가 살아 있어요. 마음대로 바꾸면 검색에 안 걸립니다.'
+        : (type === 'issue' && !allKw.length ? '이슈형은 속도전이라 없어도 됩니다. 다만 검색어를 하나 붙이면 하루 이틀 뒤 바닥이 생겨요.'
+          : '증상 · 일정 · 방법 · 가격처럼 실제 검색어를 뒤에 그대로 붙이세요.') },
+    { ok: !spoiled, label: '③ 결말을 다 말해 버리지 않았나',
+      hint: spoiled ? '답을 알려 주면 들어갈 이유가 없어요. "~됩니다" 대신 "~될까?"로 바꾸세요.' : '궁금증이 남아 있어요. 답은 본문에서.' },
+    { ok: !!numF.w || hasCelebFront || !!rankF.w, label: '④ 앞에 숫자 · 연예인 · 숨기기가 있나',
+      hint: (!!numF.w || hasCelebFront || !!rankF.w) ? '숫자 · 연예인 · 숨기기 중 최소 하나가 앞에 있어요.' : '하나도 없다면 제목을 한 번 더 고민해 보세요.' },
+  ];
 
+  /* ── 💡 아쉬운 점 · 이렇게 보완해 보세요 ───────────────────── */
+  const coach = [];
+  const pr = { hook: hook / 40, con: con / 20, st: st / 20, hide: hide / 10, ln: ln / 10 };
   if (pr.hook < 0.85) {
-    coach.push({
-      key: 'hook', label: '앞부분 후킹 ' + hook + '/40',
-      msg: '홈판 카드는 앞 12~14자만 크게 보입니다. 지금 시작 "' + frontTxt + '"은(는) 얌전해서 스쳐 지나가요. ' + (TS_COACH[kind] || TS_COACH.generic).hook + ' 중 하나를 붙이는 게 가장 빠릅니다.',
-    });
+    coach.push({ key: 'hook', label: '앞 10글자 후킹 ' + hook + '/40',
+      msg: '홈판 카드는 앞 열 글자만 크게 보입니다. 지금 시작 "' + head10.trim() + '"은(는) 얌전해요. ' + (TS_TYPE_HOOK[type]) + ' — ' + (TS_COACH[kind] || TS_COACH.generic).hook + ' 중 하나를 맨 앞에 붙이세요.' });
   } else if (pr.hook < 1) {
-    coach.push({
-      key: 'hook', label: '앞부분 후킹 ' + hook + '/40',
-      msg: '시작은 좋아요. 앞 12~14자 뒤에 물음표·ㅋㅋ 같은 말투나 "그런데" 같은 반전 말 한마디를 붙이면 40점이 됩니다.',
-    });
-  }
-  if (pr.con < 0.8) {
-    coach.push({
-      key: 'con', label: '구체성 ' + con + '/25',
-      msg: '무엇이 그런지 보여 줄 숫자·대상이 부족해요. 앞쪽 13자 안이나 바로 뒤에 ' + (TS_COACH[kind] || TS_COACH.generic).con + ' 같은 숫자와 고유명사(지역·인물·제품·구단)를 하나씩 넣어 보세요.' + (abs.length && !hasNum ? ' "' + abs[0] + '" 같은 말만으로는 모호하게 읽힙니다.' : ''),
-    });
-  } else if (pr.con < 1) {
-    coach.push({
-      key: 'con', label: '구체성 ' + con + '/25',
-      msg: '구체성은 거의 다 왔어요. 숫자 뒤에 단위(원·개월·곳)만 딱 붙이면 만점입니다.',
-    });
+    coach.push({ key: 'hook', label: '앞 10글자 후킹 ' + hook + '/40',
+      msg: '시작은 좋아요. 열 글자 뒤에 물음표나 "그런데" 같은 반전 말 한마디를 붙이면 40점이 됩니다.' });
   }
   if (pr.st < 0.8) {
-    coach.push({
-      key: 'st', label: '검색형·구조 ' + st + '/20',
-      msg: '앞부분이 검색형 키워드로 시작하면 홈판에서 스쳐요. 구조를 "앞=후킹 / 뒤=검색 키워드"로 바꾸세요 — ' + (TS_COACH[kind] || TS_COACH.generic).kw + ' 같은 말은 뒷부분으로 보내고, 맨 앞은 후킹 문구로 채우면 둘 다 잡힙니다.' + (searchCount >= 3 ? ' 검색어가 ' + searchCount + '개 붙어 나열처럼 보이니 1~2개만 남기세요.' : ''),
-    });
+    coach.push({ key: 'st', label: '뒤 검색 키워드 ' + st + '/20',
+      msg: TS_TYPE_COACH[type] + ' 구조는 "앞=후킹 / 뒤=검색 키워드"이고, 가장 노골적인 방법은 세로줄(|) 하나입니다.' });
   } else if (pr.st < 1) {
-    coach.push({
-      key: 'st', label: '검색형·구조 ' + st + '/20',
-      msg: '구조는 좋아요. 뒤쪽 검색 키워드를 1~2개만 남기면 더 또렷해집니다.',
-    });
+    coach.push({ key: 'st', label: '뒤 검색 키워드 ' + st + '/20',
+      msg: '구조는 좋아요. 뒤쪽 키워드를 1개만 남기고 원형 그대로 두면 더 또렷해집니다.' });
+  }
+  if (pr.hide < 0.8) {
+    coach.push({ key: 'hide', label: '결말 숨기기 ' + hide + '/10',
+      msg: '제목에서 답을 말해 버렸어요. "~됩니다 / ~입니다" 대신 "~될까?" "~는데?"처럼 물음으로 끝내고 답은 본문에서 주세요.' });
+  }
+  if (pr.con < 0.75) {
+    coach.push({ key: 'con', label: '구체성 ' + con + '/20',
+      msg: '무엇이 그런지 보여 줄 숫자·대상이 부족해요. ' + (TS_COACH[kind] || TS_COACH.generic).con + ' 같은 숫자와 고유명사(지역·인물·제품·구단)를 하나씩 넣어 보세요.' });
   }
   if (len < 22) {
-    coach.push({ key: 'ln', label: '길이·가독성 ' + ln + '/15',
-      msg: '지금 ' + len + '자 — 22~44자에 맛추려면 ' + (22 - len) + '자만 더 붙이면 됩니다. 뒤에 지역명이나 검색 키워드(맛집·후기·방법)를 붙이면 자연스럽게 채워집니다.' });
-  } else if (len > 44) {
-    coach.push({ key: 'ln', label: '길이·가독성 ' + ln + '/15',
-      msg: '지금 ' + len + '자 — 모바일 홈판 카드에서 ' + (len - 44) + '자가 잘립니다. 뒤쪽 수식어·중복 키워드부터 덜어 내세요. 앞 12~14자는 절대 건드리지 마세요.' });
-  } else if (ln < 15) {
-    coach.push({ key: 'ln', label: '길이·가독성 ' + ln + '/15',
-      msg: '길이는 ' + len + '자로 딱 좋아요. 이 구간(22~44자)을 유지하면 15점 만점입니다.' });
+    coach.push({ key: 'ln', label: '길이·가독성 ' + ln + '/10',
+      msg: '지금 ' + len + '자 — 뒤에 지역명이나 검색 키워드를 붙여 22~60자로 맞춰 보세요.' });
+  } else if (len > 80) {
+    coach.push({ key: 'ln', label: '길이·가독성 ' + ln + '/10',
+      msg: '지금 ' + len + '자 — 조합 제목은 길어도 되지만 앞 열 글자 뒤 수식어부터 덜어 내세요.' });
   }
   if (!coach.length) {
     coach.push({ key: 'all', label: '지금은 크게 아쉬운 곳이 없어요',
-      msg: '네 가지(앞부분 후킹·구체성·검색 구조·길이) 모두 기준을 넘었어요. 굳이 더 손보려면 사진 첫 장을 앞 13자 후킹과 맞추고, 뒤쪽 키워드를 1개만 남겨 보세요.' });
+      msg: '다섯 가지(앞 열 글자·구체성·뒤 키워드·결말 숨기기·길이) 모두 기준을 넘었어요. 사진 첫 장만 앞 열 글자와 맞추면 더 좋아요.' });
   }
   coach.sort((a, b) => (pr[a.key] == null ? 2 : pr[a.key]) - (pr[b.key] == null ? 2 : pr[b.key]));
 
-  /* ── ✨ 보완한 추천 제목 3개 (2026-11-20 추가) ── */
+  /* ── ✨ 보완한 추천 제목 3개 — 조합 공식(앞 후킹 + 뒤 키워드) ── */
   const bank = TS_BANK[kind] || TS_BANK.generic;
-  const numBank = TS_NUM[kind] || TS_NUM.generic;  let base = title;
+  const numBank = TS_NUM[kind] || TS_NUM.generic;
+  let base = title;
   if (frontSearch.length) {
     const keep = frontSearch[0];
-    const core = toks.filter((t) => TS_DICT.SEARCH.indexOf(t) < 0 && !/^\d/.test(t));
+    const core = toks.filter((t) => TS_KW.indexOf(t) < 0 && !/^\d/.test(t));
     base = ((core.length ? core : toks).join(' ') + ' ' + keep).trim();
   }
-  const kwTail = allSearch[0] || (tailNames.length ? tailNames[tailNames.length - 1] : '');
+  const kwTail = (tailKw[0] || allKw[0] || (names.length ? names[names.length - 1] : ''));
   const suggestions = [];
-  const addSug = (type, text) => {
-    const t = tsTrim(text, 44);
+  const addSug = (type2, text) => {
+    const t = tsTrim(text, 64).replace(/[|\s]+$/, '');
     if (!t || t === title) return;
     if (suggestions.some((s) => s.text === t)) return;
-    if (suggestions.length < 3) suggestions.push({ type, text: t });
+    if (suggestions.length < 3) suggestions.push({ type: type2, text: t });
   };
-  addSug('① 후킹 강화형', bank[0] + base);
-  addSug('② 숫자·비교 구체화형', (hasNum ? numBank[1] : numBank[0]) + base);
-  addSug('③ 검색 키워드 + 호기심 균형형', bank[1] + base + (kwTail && base.indexOf(kwTail) < 0 ? ' ' + kwTail : ''));
+  const needKw = (t2) => (kwTail && t2.indexOf(kwTail) < 0 ? t2 + ' ' + kwTail : t2);
+  /* ③는 7기 공식을 가장 노골적으로 — 세로줄(|) 앞은 후킹, 뒤는 검색 키워드 */
+  let s3 = bank[1] + base;
+  const kwList = TS_KW.slice().sort((x, y) => y.length - x.length);
+  let cut = -1;
+  for (let i = 0; i < kwList.length; i++) {
+    const w = kwList[i];
+    const at = s3.lastIndexOf(w);
+    if (at < 12) continue;
+    const after = s3.charAt(at + w.length);
+    if (after && /[가-힣]/.test(after)) continue;  /* '주식해야'처럼 단어 안쪽은 건너뛴다 */
+    cut = at; break;
+  }
+  if (s3.indexOf('|') < 0 && cut > 12) s3 = s3.slice(0, cut).trim() + ' | ' + s3.slice(cut).trim();
+  addSug('① 후킹 강화형', needKw(bank[0] + base));
+  addSug('② 숫자·비교 구체화형', needKw((hasNum ? numBank[1] : numBank[0]) + base));
+  addSug('③ 조합(앞 후킹 | 뒤 키워드)형', s3);
   if (suggestions.length) {
-    tips.push('추천 제목은 앞부분만 바꾼 같은 글입니다. 📋 복사로 바로 쓰거나 🎯 이 제목 채점으로 점수를 확인해 보세요.');
+    tips.push('추천 제목은 강의 공식대로 "앞은 후킹, 뒤는 검색 키워드 원형"으로만 바꾼 같은 글입니다. 📋 복사로 바로 쓰거나 🎯 이 제목 채점으로 확인해 보세요.');
     if (suggestions.some((s) => s.text.indexOf('○') >= 0)) {
       tips.push('②의 ○ 자리에는 직접 확인한 숫자(가격·개월·횟수)를 넣어 주세요. 없는 숫자를 지어내면 안 됩니다.');
     }
   }
-  if (!suggestions.length && total >= 80) tips.push('지금 제목 그대로 발행해도 좋아요. 사진 첫 장만 앞부분 후킹과 맞춰 두면 클릭률이 더 올라가요.');
+  if (!suggestions.length && total >= 80) tips.push('지금 제목 그대로 발행해도 좋아요. 사진 첫 장만 앞 열 글자 후킹과 맞춰 두면 클릭률이 더 올라가요.');
 
   return {
-    ok: true, title, len, front, total, grade, gradeMsg, summary,
+    ok: true, title, len, front: head10, total, grade, gradeMsg, summary,
     parts, good: good.slice(0, 4), fix: fix.slice(0, 4), tips, suggestions, coach,
-    weakest: weakest.key, soft, kind,
+    weakest: weakest.key, soft, kind, type, typeName: TS_TYPE_LABEL[type],
+    checks, spoiled, frontSeg, tailSeg,
   };
 }
 /* ==== SCORER-CORE END ==== */
@@ -1672,8 +1825,8 @@ function scorerNode() {
   const box = document.createElement('div');
   box.className = 'scorer card';
   box.innerHTML = `
-    <div class="sc-head"><span>🎯 홈판 제목 점수기</span><span class="pill dust">앞 12~14자 기준</span></div>
-    <div class="sc-sub">정하신 제목을 넣으면 홈판 카드에서 몇 점인지, 어디가 약한지 바로 짚어 드려요. (100점 만점 · 바로 계산)</div>
+    <div class="sc-head"><span>🎯 홈판 제목 점수기</span><span class="pill dust">7기 2회차 · 앞 10글자</span></div>
+    <div class="sc-sub">제목을 넣으면 7기 공식(앞은 후킹 · 뒤는 검색 키워드 · 결말 숨기기)으로 몇 점인지, 어디가 약한지 바로 짚어 드려요. (100점 만점 · 바로 계산)</div>
     <div class="sc-kinds" id="scKindChips">${SC_KINDS.map(([k, label, hint]) =>
       `<button class="sc-kind${SC_KIND === k ? ' on' : ''}" data-sc="kind" data-kind="${k}" title="${esc(hint)}">${esc(label)}</button>`).join('')}</div>
     <div class="sc-row">
@@ -1732,10 +1885,15 @@ function runScorer(rawTitle) {
     </div>
     <div class="sc-sum">${esc(r.summary)}</div>
     <div class="sc-prev">
-      <div class="lb"><span>홈판 카드 미리보기</span><span>앞 13자</span></div>
-      <div class="tt"><span class="hl">${esc(chars.slice(0, 13).join(''))}</span><span class="dim">${esc(chars.slice(13).join(''))}</span></div>
+      <div class="lb"><span>홈판 카드 미리보기</span><span>앞 10글자</span></div>
+      <div class="tt"><span class="hl">${esc(chars.slice(0, 10).join(''))}</span><span class="dim">${esc(chars.slice(10).join(''))}</span></div>
+    </div>
+    <div class="sc-type">
+      <span class="tp">${TS_TYPE_ICON[r.type] || '📚'} ${esc(r.typeName)}</span>
+      <span class="tx">${esc(TS_TYPE_HOOK[r.type] || '')}</span>
     </div>
     <div class="sc-bars">${barRows}</div>
+    ${(r.checks || []).length ? `<div class="sc-check"><h4>✅ 좋은 제목 체크 4가지</h4><ul>${r.checks.map((c) => `<li class="${c.ok ? 'ok' : 'no'}"><b>${c.ok ? '✓' : '✗'} ${esc(c.label)}</b><span>${esc(c.hint)}</span></li>`).join('')}</ul></div>` : ''}
     ${r.good.length ? `<div class="sc-list good"><h4>👍 잘한 점</h4><ul>${r.good.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
     ${(r.coach || []).length ? `<div class="sc-list fix sc-coach"><h4>💡 아쉬운 점 · 이렇게 보완해 보세요</h4><ul>${r.coach.map((c) => `<li><b>${esc(c.label)}</b> — ${esc(c.msg)}</li>`).join('')}</ul></div>` : ''}
     ${(r.suggestions || []).length ? `<div class="sc-sug">
@@ -1770,7 +1928,7 @@ function renderScorer() {
         <div class="hero-top">
           <div class="avatar">🎯</div>
           <div><h2>홈판 제목 점수기</h2>
-            <div class="hero-sub">제목 붙여넣기 → 채점 → 약한 곳만 고치기 · 6기 홈판 제목 원칙 그대로 100점</div></div>
+            <div class="hero-sub">제목 붙여넣기 → 채점 → 약한 곳만 고치기 · 7기 2회차 공식(앞은 후킹 · 뒤는 키워드 · 결말 숨기기) 100점</div></div>
         </div>
       </div>
     </div>
