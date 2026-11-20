@@ -953,7 +953,10 @@ function ftParse(src) {
 }
 
 /* 마크다운 # 없이 붙여넣은 원고에서도 짧은 단독 줄은 소제목으로 */
-const FT_SENT_END = /(요|죠|네|다|까|냐|니|자|래|군|습니다|ㅂ니다|세요|해요|어요|아요|합니다|입니다|였습니다|했어|했죠)$/;
+/* 완전한 대화체·서술체 어미만 본문 문장으로 본다(2026-11-20 지시).
+   '~다·~까·~요·~죠·~네·~데·~지'로 끝나는 짧은 단독 줄은 소제목일 수 있으므로 탈락시키지 않는다. */
+const FT_SENT_END = /(습니다|ㅂ니다|입니다|였습니다|합니다|해요|에요|예요|세요|어요|아요)$/;
+const FT_HEAD_CONT = /(는데|지만|면서|니까|으면|하고|해서|이며|거나|든지|라고|다고|라서|어서|아서|었고|였고)$/;
 const FT_HEAD_SKIP = [
   /^(※|\*\s*※|\[?\s*(출처|참고|사진|이미지|광고|협찬)\s*[:：])/,
   /^(안녕하|안녕!|안녕,|안녕하세|반갑|반가|어서\s*오세요|다들\s*안녕)/,
@@ -970,6 +973,8 @@ function ftHeadText(bk) {
   if (/^[-*+>|]|^\d+[.)]\s/.test(plain)) return '';
   if (/[.,;:·…]$/.test(plain)) return '';
   if (/\.\s/.test(plain)) return '';
+  // '~습니다·~해요·~입니다' 같은 완전한 어미는 본문, '?로 끝나는 짧은 의문문 소제목'은 허용
+  if (!/\?\s*$/.test(plain) && FT_SENT_END.test(plain.replace(/[!~]+$/, ''))) return '';
   if (!/[가-힣]/.test(plain) && !/[A-Za-z]{2,}/.test(plain)) return '';
   if ((plain.match(/[가-힣A-Za-z]/g) || []).length < 2) return '';
   const chk = plain.replace(/^[\[("'“”‘’]+/, '');
@@ -993,12 +998,12 @@ function ftAutoHeads(blocks) {
     const alone = before && after;
     const nextBody = next.t === 'p' && nextLen >= 20;
     const nextLong = next.t === 'p' && nextLen >= 30;
+    const contish = FT_HEAD_CONT.test(head.replace(/[?!~.]+$/, ''));
     let ok = false;
-    const sentish = FT_SENT_END.test(head.replace(/[?!~]+$/, ''));
-    if (sentish) ok = alone && head.length <= 22 && nextLong;   // '~했어요'로 끝나도 앞뒤 띄어 쓴 짧은 줄은 소제목
-    else if (/[?!]$/.test(head)) ok = alone || nextLong;
-    else if (alone) ok = true;
-    else if ((before || after) && nextBody) ok = true;
+    if (/[?!]$/.test(head)) ok = alone || nextBody || nextLong;          // 짧은 의문·감탄 소제목("바로 기회 줘야 할까?")
+    else if (alone) ok = true;                                          // 앞뒤가 빈 줄인 단독 줄 → 소제목
+    else if (nextBody && (before || after)) ok = true;                   // 한쪽만 빈 줄 + 뒤에 본문 20자↑
+    else if (nextBody && !contish) ok = true;                            // 줄바꿈만 있는 쌩 텍스트
     else if (nextLong && (prevLen >= 30 || i === 0)) ok = true;
     out.push(ok ? Object.assign({}, bk, { t: 'h2', s: head, autoHead: true }) : bk);
   }
@@ -1006,12 +1011,116 @@ function ftAutoHeads(blocks) {
 }
 
 const FT_KEYS = /(핵심|중요|주의|포인트|결론|요약|추천|무료|할인|최대|최소|기준|원|%|개월|시간|칼로리|mg|ml|g\b)/;
+function ftSentences(plain) {
+  return String(plain).split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 8);
+}
+/* ① 숫자 문장 ② 핵심어 문장 ③ 그래도 없으면 폴백(2026-11-20 지시: 형광펜이 아예 안 들어가던 문제) */
 function ftPickSentence(txt) {
   const plain = String(txt).replace(/\*\*|==/g, '');
-  const sents = plain.split(/(?<=[.!?])\s+|(?<=다\.)\s*/).map((s) => s.trim()).filter((s) => s.length > 8);
+  const sents = ftSentences(plain);
   let pick = sents.find((s) => /\d/.test(s));
   if (!pick) pick = sents.find((s) => FT_KEYS.test(s));
+  if (!pick) pick = ftFallbackSentence(sents, plain);
   return pick || null;
+}
+/* 폴백 — 10~55자 문장 중 판단·감정이 드러나는 한 문장(점수 같으면 뒤쪽 결론 문장) */
+function ftFallbackSentence(sents, plain) {
+  const scored = sents.filter((s) => s.length >= 10 && s.length <= 55).map((s, i) => {
+    let n = 0;
+    if (/(다|요|죠|까|네)$/.test(s.replace(/[.!?~]+$/, ''))) n += 1;
+    if (s.length >= 15 && s.length <= 45) n += 1;
+    if (/(지만|는데|반면|다만|그런데)/.test(s)) n += 1;
+    return { s: s, n: n, i: i };
+  });
+  if (scored.length) {
+    scored.sort((a, b) => (b.n - a.n) || (b.i - a.i));
+    return scored[0].s;
+  }
+  const any = sents.filter((s) => s.length >= 6);
+  if (any.length) return any[any.length - 1];
+  const whole = String(plain).trim();
+  if (whole.length >= 6 && whole.length <= 55) return whole;
+  return null;
+}
+/* '**'·'==' 표시를 뺀 평문과 '평문 위치 → 원문 위치' 지도 */
+function ftPlainMap(raw) {
+  const map = [];
+  let plain = '';
+  for (let i = 0; i < raw.length; i++) {
+    if ((raw[i] === '*' && raw[i + 1] === '*') || (raw[i] === '=' && raw[i + 1] === '=')) { i++; continue; }
+    plain += raw[i];
+    map.push(i);
+  }
+  return { plain: plain, map: map };
+}
+function ftMarkSentence(raw, pick) {
+  if (!pick) return raw;
+  const m = ftPlainMap(raw);
+  const at = m.plain.indexOf(pick);
+  if (at < 0) return raw;
+  const s = m.map[at];
+  const e = m.map[at + pick.length - 1] + 1;
+  return raw.slice(0, s) + '==' + raw.slice(s, e) + '==' + raw.slice(e);
+}
+/* ── 소제목 섹션당 형광펜 1~2개 무조건 (2026-11-20 지시) ──
+   섹션 = 소제목부터 다음 소제목 전까지. 본문 문단 1개면 1개, 2개 이상이면 2개.
+   이미 ==…== 가 있으면 채운 것으로 세고, 첫인사·끝인사·해시태그·출처·주석은 뺀다. */
+const FT_HL_SKIP = [
+  /^#\S/,
+  /^(※|\*\s*※|\[?\s*(출처|참고|사진|이미지|광고|협찬)\s*[:：])/,
+  /(감사합니다|고맙습니다|이상입니다|여기까지입니다|마치겠습니다)/,
+  /(공감과\s*댓글|구독과\s*좋아요|이웃\s*추가)/,
+  /^(안녕하|안녕!|안녕,|반갑|예브\s*예요|예브입니다|예브였습니다|찐찡맘이에요|찐찡맘)/,
+];
+function ftHlCount(s) { return (String(s || '').match(/==/g) || []).length / 2; }
+function ftHlable(bk, i) {
+  if (!bk || bk.t !== 'p') return false;
+  const s = String(bk.s || '').trim();
+  if (s.length < 12) return false;
+  if (!/[가-힣]/.test(s)) return false;
+  const chk = s.replace(/^[\[("'“”‘’]+/, '');
+  for (let k = 0; k < FT_HL_SKIP.length; k++) if (FT_HL_SKIP[k].test(chk)) return false;
+  if (i === 0 && !/\.$/.test(s)) return false;
+  return true;
+}
+function ftAutoHl(blocks) {
+  const out = blocks.slice();
+  const sections = [];
+  let cur = [];
+  for (let i = 0; i < out.length; i++) {
+    const bk = out[i];
+    if (bk.t === 'h1' || bk.t === 'h2' || bk.t === 'h3') { if (cur.length) sections.push(cur); cur = []; continue; }
+    cur.push(i);
+  }
+  if (cur.length) sections.push(cur);
+  sections.forEach((idxs0) => {
+    const idxs = idxs0.filter((i) => ftHlable(out[i], i));
+    if (!idxs.length) return;
+    const want = idxs.length >= 2 ? 2 : 1;
+    let have = 0;
+    idxs.forEach((i) => { have += ftHlCount(out[i].s); });
+    let guard = 0;
+    while (have < want && guard < 4) {
+      let moved = false;
+      const order = idxs.slice().sort((a, b) => (ftHlCount(out[a].s) - ftHlCount(out[b].s)) || (a - b));
+      for (let k = 0; k < order.length && have < want; k++) {
+        const i = order[k];
+        const raw = String(out[i].s);
+        if (ftHlCount(raw) >= 2) continue;
+        const src = raw.indexOf('==') >= 0 ? raw.replace(/==[^=]*==/g, ' ') : raw;
+        const pick = ftPickSentence(src);
+        if (!pick) continue;
+        const marked = ftMarkSentence(raw, pick);
+        if (marked === raw) continue;
+        out[i] = Object.assign({}, out[i], { s: marked });
+        have += 1;
+        moved = true;
+      }
+      if (!moved) break;
+      guard += 1;
+    }
+  });
+  return out;
 }
 
 function ftBlockText(bk) {
@@ -1059,20 +1168,7 @@ function ftAutoClosing(blocks) {
 
 /* 자동 서식: 소제목 승격 + 소제목마다 형광펜 한 문장 + 첫인사 + 회색 구분선·💛 찐찡맘 총평 */
 function ftAuto(blocks) {
-  blocks = ftAutoHeads(blocks);
-  let used = false;
-  return blocks.map((bk) => {
-    if (bk.t === 'h1' || bk.t === 'h2' || bk.t === 'h3') { used = false; return bk; }
-    if (bk.t !== 'p') return bk;
-    if (bk.s.indexOf('==') >= 0) { used = true; return bk; }
-    if (used) return bk;
-    const pick = ftPickSentence(bk.s);
-    if (!pick) return bk;
-    const idx = bk.s.indexOf(pick);
-    if (idx < 0) return bk;
-    used = true;
-    return Object.assign({}, bk, { s: bk.s.slice(0, idx) + '==' + pick + '==' + bk.s.slice(idx + pick.length) });
-  });
+  return ftAutoHl(ftAutoHeads(blocks));
 }
 
 function ftInline(s, b) {
@@ -1733,12 +1829,12 @@ function promoteHeads(blocks) {
     const before = b.gapBefore !== false;
     const after = b.gapAfter !== false;
     const alone = before && after;
-    const sentish = FT_SENT_END.test(plain.replace(/[?!~]+$/, ''));
+    const contish = FT_HEAD_CONT.test(plain.replace(/[?!~.]+$/, ''));
     let ok = false;
-    if (sentish) ok = alone && plain.length <= 22 && nextLen >= 30;
-    else if (/[?!]$/.test(plain)) ok = alone || nextLen >= 30;
+    if (/[?!]$/.test(plain)) ok = alone || nextLen >= 20 || nextLen >= 30;
     else if (alone) ok = true;
-    else if ((before || after) && nextLen >= 20) ok = true;
+    else if (nextLen >= 20 && (before || after)) ok = true;
+    else if (nextLen >= 20 && !contish) ok = true;
     else if (nextLen >= 30 && (prevLen >= 30 || i === 0)) ok = true;
     if (ok) { b.t = 'h2'; b.text = plain; }
   }

@@ -3168,6 +3168,11 @@ const FT_HEAD_SKIP = [
   /^(문의|제휴|광고\s*문의)/,                                                // 문의 줄
 ];
 
+/* 완전한 대화체·서술체 어미 — 이런 줄만 '일반 본문 문장'으로 확정한다.
+   2026-11-20 지시: '~다·~까·~요·~죠·~네·~데·~지'로 끝나는 짧은 단독 줄은 소제목일 수 있으므로
+   여기서 일괄 탈락시키지 않는다(“명단부터 묵직하다”, “수비부터 볼까”, “첫 소식은 누구일까”). */
+const FT_FULL_SENT = /(습니다|ㅂ니다|입니다|였습니다|합니다|해요|에요|예요|세요|어요|아요)$/;
+
 /* 한 줄이 소제목 후보인지 — 후보면 표시용 평문을, 아니면 ''을 돌려준다 */
 function ftHeadText(bk) {
   const raw = String(bk.s || '').trim();
@@ -3178,7 +3183,9 @@ function ftHeadText(bk) {
   if (/^[-*+>|]|^\d+[.)]\s/.test(plain)) return '';          // 목록·표·인용 표시
   if (/[.,;:·…]$/.test(plain)) return '';                    // 마침표 등으로 끝나면 본문
   if (/\.\s/.test(plain)) return '';                         // 문장이 이어지는 줄은 본문
-  if (/(요|죠|네|다|까|냐|니|자|래|군|습니다|ㅂ니다|세요|해요|어요|아요|합니다|입니다|였습니다|했어|했죠)$/.test(plain.replace(/[?!~]+$/, ''))) return ''; // 말끝이 문장인 줄
+  // '~습니다·~해요·~입니다' 같은 완전한 어미만 본문 문장으로 본다.
+  // 단 '?로 끝나는 짧은 의문문 소제목'(“바로 기회 줘야 할까?”, “이래도 될까요?”)은 소제목으로 허용.
+  if (!/\?\s*$/.test(plain) && FT_FULL_SENT.test(plain.replace(/[!~]+$/, ''))) return '';
   if (!/[가-힣]/.test(plain) && !/[A-Za-z]{2,}/.test(plain)) return '';
   if ((plain.match(/[가-힣A-Za-z]/g) || []).length < 2) return '';
   const chk = plain.replace(/^[\[("'“”‘’]+/, '');
@@ -3204,11 +3211,13 @@ function ftAutoHeads(blocks) {
     const alone = before && after;                            // 앞뒤가 빈 줄인 단독 줄
     const nextBody = next.t === 'p' && nextLen >= 20;         // 다음이 일반 본문 단락
     const nextLong = next.t === 'p' && nextLen >= 30;         // 다음이 긴 본문(30자+)
+    const contish = FT_HEAD_CONT.test(head.replace(/[?!~.]+$/, ''));   // ~는데·~지만 으로 이어지는 줄
     let ok = false;
-    if (/[?!]$/.test(head)) ok = alone || nextLong;           // 짧은 의문·감탄 소제목
-    else if (alone) ok = true;
-    else if ((before || after) && nextBody) ok = true;
-    else if (nextLong && (prevLen >= 30 || i === 0)) ok = true; // 줄바꿈만 있는 쌩 텍스트
+    if (/[?!]$/.test(head)) ok = alone || nextBody || nextLong;          // 짧은 의문·감탄 소제목("바로 기회 줘야 할까?")
+    else if (alone) ok = true;                                          // 앞뒤가 빈 줄인 단독 줄 → 소제목
+    else if (nextBody && (before || after)) ok = true;                   // 한쪽만 빈 줄 + 뒤에 본문 20자↑
+    else if (nextBody && !contish) ok = true;                            // 줄바꿈만 있는 쌩 텍스트에서도 소제목
+    else if (nextLong && (prevLen >= 30 || i === 0)) ok = true;
     out.push(ok ? Object.assign({}, bk, { t: 'h2', s: head, autoHead: true }) : bk);
   }
   return out;
@@ -3216,13 +3225,129 @@ function ftAutoHeads(blocks) {
 
 const FT_KEYS = /(핵심|중요|주의|포인트|결론|요약|추천|무료|할인|최대|최소|기준|원|%|개월|시간|칼로리|mg|ml|g\b)/;
 
-/* 형광펜 칠할 문장 고르기 — 숫자 있는 문장 우선, 없으면 핵심어 */
+/* 문장 후보로 쪼개기 */
+function ftSentences(plain) {
+  return String(plain).split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 8);
+}
+
+/* 형광펜 칠할 문장 고르기 — ① 숫자 문장 ② 핵심어 문장 ③ 그래도 없으면 폴백(가장 자연스러운 문장).
+   2026-11-20 지시: 숫자·핵심어가 없는 스포츠·일반 원고에서 형광펜이 아예 안 들어가던 문제 → 폴백에서 무조건 한 문장 고른다. */
 function ftPickSentence(txt) {
   const plain = String(txt).replace(/\*\*|==/g, '');
-  const sents = plain.split(/(?<=[.!?])\s+|(?<=다\.)\s*/).map((s) => s.trim()).filter((s) => s.length > 8);
+  const sents = ftSentences(plain);
   let pick = sents.find((s) => /\d/.test(s));
   if (!pick) pick = sents.find((s) => FT_KEYS.test(s));
+  if (!pick) pick = ftFallbackSentence(sents, plain);
   return pick || null;
+}
+
+/* 폴백 — 10~55자 문장 중 판단·감정이 가장 잘 드러나는 한 문장(점수 같으면 뒤쪽 결론 문장) */
+function ftFallbackSentence(sents, plain) {
+  const scored = sents.filter((s) => s.length >= 10 && s.length <= 55).map((s, i) => {
+    let n = 0;
+    if (/(다|요|죠|까|네)$/.test(s.replace(/[.!?~]+$/, ''))) n += 1;      // 서술·감정으로 끝나는 문장
+    if (s.length >= 15 && s.length <= 45) n += 1;                        // 너무 짧지도 길지도 않게
+    if (/(지만|는데|반면|다만|그리는|그런데)/.test(s)) n += 1;            // 판단·대비가 담긴 문장
+    return { s, n, i };
+  });
+  if (scored.length) {
+    scored.sort((a, b) => (b.n - a.n) || (b.i - a.i));
+    return scored[0].s;
+  }
+  const any = sents.filter((s) => s.length >= 6);
+  if (any.length) return any[any.length - 1];
+  const whole = String(plain).trim();
+  if (whole.length >= 6 && whole.length <= 55) return whole;
+  return null;
+}
+
+/* '**'·'==' 표시를 뺀 평문과 '평문 위치 → 원문 위치' 지도 */
+function ftPlainMap(raw) {
+  const map = [];
+  let plain = '';
+  for (let i = 0; i < raw.length; i++) {
+    if ((raw[i] === '*' && raw[i + 1] === '*') || (raw[i] === '=' && raw[i + 1] === '=')) { i++; continue; }
+    plain += raw[i];
+    map.push(i);
+  }
+  return { plain: plain, map: map };
+}
+
+/* 문단 하나에 문장 하나를 ==…== 로 감싼다 */
+function ftMarkSentence(raw, pick) {
+  if (!pick) return raw;
+  const m = ftPlainMap(raw);
+  const at = m.plain.indexOf(pick);
+  if (at < 0) return raw;
+  const s = m.map[at];
+  const e = m.map[at + pick.length - 1] + 1;
+  return raw.slice(0, s) + '==' + raw.slice(s, e) + '==' + raw.slice(e);
+}
+
+/* ── 소제목 섹션당 형광펜 1~2개 무조건 (2026-11-20 지시) ────────────────
+   섹션 = 소제목(h1~h3)부터 다음 소제목 전까지(첫 소제목 전 도입부도 한 섹션).
+   본문 문단이 1개면 1개, 2개 이상이면 2개를 넣는다. 이미 ==…== 가 있으면 채운 것으로 센다.
+   첫인사·끝인사·해시태그·출처·주석·목록은 대상에서 뺀다. */
+const FT_HL_SKIP = [
+  /^#\S/,                                                              // 해시태그 덩어리
+  /^(※|\*\s*※|\[?\s*(출처|참고|사진|이미지|광고|협찬)\s*[:：])/,          // 주석·출처
+  /(감사합니다|고맙습니다|이상입니다|여기까지입니다|마치겠습니다)/,        // 맺음말
+  /(공감과\s*댓글|구독과\s*좋아요|이웃\s*추가)/,                           // 마무리 요청
+  /^(안녕하|안녕!|안녕,|반갑|예브\s*예요|예브입니다|예브였습니다|찐찡맘이에요)/, // 첫인사
+];
+
+function ftHlCount(s) { return (String(s || '').match(/==/g) || []).length / 2; }
+
+function ftHlable(bk, i) {
+  if (!bk || bk.t !== 'p') return false;
+  const s = String(bk.s || '').trim();
+  if (s.length < 12) return false;                                   // 사진 설명·짧은 한 줄
+  if (!/[가-힣]/.test(s)) return false;
+  const chk = s.replace(/^[\[("'“”‘’]+/, '');
+  for (let k = 0; k < FT_HL_SKIP.length; k++) if (FT_HL_SKIP[k].test(chk)) return false;
+  if (i === 0 && !/\.$/.test(s)) return false;                     // 문서 첫 줄(제목)은 건드리지 않는다
+  return true;
+}
+
+function ftAutoHl(blocks) {
+  const out = blocks.slice();
+  const sections = [];
+  let cur = [];
+  for (let i = 0; i < out.length; i++) {
+    const bk = out[i];
+    if (bk.t === 'h1' || bk.t === 'h2' || bk.t === 'h3') { if (cur.length) sections.push(cur); cur = []; continue; }
+    cur.push(i);
+  }
+  if (cur.length) sections.push(cur);
+
+  sections.forEach((idxs0) => {
+    const idxs = idxs0.filter((i) => ftHlable(out[i], i));
+    if (!idxs.length) return;
+    const want = idxs.length >= 2 ? 2 : 1;
+    let have = 0;
+    idxs.forEach((i) => { have += ftHlCount(out[i].s); });
+    let guard = 0;
+    while (have < want && guard < 4) {                                // 한 문단에 최대 2개까지, 더 필요하면 다시
+      let moved = false;
+      const order = idxs.slice().sort((a, b) => (ftHlCount(out[a].s) - ftHlCount(out[b].s)) || (a - b));
+      for (let k = 0; k < order.length && have < want; k++) {
+        const i = order[k];
+        const raw = String(out[i].s);
+        if (ftHlCount(raw) >= 2) continue;                            // 한 문단에 2개를 넘기지 않는다
+        const src = raw.indexOf('==') >= 0 ? raw.replace(/==[^=]*==/g, ' ') : raw;   // 이미 칠한 문장은 다시 고르지 않게
+        const pick = ftPickSentence(src);
+        if (!pick) continue;
+        const marked = ftMarkSentence(raw, pick);
+        if (marked === raw) continue;
+        out[i] = Object.assign({}, out[i], { s: marked });
+        have += 1;
+        moved = true;
+      }
+      if (!moved) break;
+      guard += 1;
+    }
+  });
+  return out;
 }
 
 /* 첫인사 자동 문단 — 예지브러리·찐찡이네만 있다(실제 발행 글 확인: 나머지 블로그는 첫인사 없음) */
@@ -3282,23 +3407,7 @@ function ftAutoClosing(blocks, b) {
 
 /* 자동 서식: 쌩 텍스트 소제목 승격 + 핵심 문장 형광펜 + 기준일 문구 + 예지브러리 첫인사·마무리 */
 function ftAuto(blocks, b) {
-  blocks = ftAutoHeads(blocks);
-  let used = false;
-  let hasBold = false;
-  const out = blocks.map((bk) => {
-    if (bk.t === 'h1' || bk.t === 'h2' || bk.t === 'h3') { used = false; hasBold = false; return bk; }
-    if (bk.t !== 'p') return bk;
-    if (bk.s.indexOf('==') >= 0) { used = true; return bk; }
-    if (bk.s.indexOf('**') >= 0) hasBold = true;
-    if (used || hasBold) return bk;
-    if (b.id === 'mybodydesk' && hasBold) return bk;
-    const pick = ftPickSentence(bk.s);
-    if (!pick) return bk;
-    const idx = bk.s.indexOf(pick);
-    if (idx < 0) return bk;
-    used = true;
-    return Object.assign({}, bk, { s: bk.s.slice(0, idx) + '==' + pick + '==' + bk.s.slice(idx + pick.length) });
-  });
+  const out = ftAutoHl(ftAutoHeads(blocks));
 
   if (b.autoNote) {
     let at = -1;
