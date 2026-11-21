@@ -1385,16 +1385,26 @@ function tsKind(title) {
   });
   return best;
 }
-/* 주제별 훅 — 그 분야에 자연스러운 말만 쓴다 */
+/* 주제별 훅 — 그 분야에 자연스러운 말만 쓴다.
+   2026-11-21 전면 교체: ① 주제당 8개 ② 입력 제목(tsSeed)으로 자리를 흩뿌려 같은 분야라도 늘 같은 훅이 붙지 않게
+   ③ '기준' 같은 명사구만 덩그러니 붙지 않도록 말이 되는 구어체 한마디만 ④ ○ 플레이스홀더 없음 */
 const TS_BANK = {
-  sports: ['"연봉·성적 다 따져보니" ', '"이번 시즌 최대 변수?" '],
-  tech: ['"3개월 써보니" ', '"사기 전에 알아야 할" '],
-  health: ['"병원에서 들은 기준" ', '"숫자로 보면 이래요" '],
-  parenting: ['"학부모들 다 이 말 해요" ', '"초등 기준으로 보면" '],
-  money: ['"신청 안 하면 못 받아요" ', '"이거 모르면 그냥 손해" '],
-  food: ['"여기 왜 줄 서는지 알겠다" ', '"먹자마자 말 잃은" '],
-  celeb: ['"이걸 직접 공개한다고?" ', '"그동안 숨긴 진짜 이유" '],
-  generic: ['"이건 실화야?" ', '"아직도 모르는" '],
+  sports: ['"이번엔 다르다는데"', '"결국 이렇게 됐다"', '"판돌이도 놀랐다"', '"벤치가 움직였다"',
+    '"숫자가 말해 준다"', '"그 장면 다시 보니"', '"계약 규모부터"', '"누가 봐도"'],
+  tech: ['"3개월 써보니"', '"사기 전에 확인할 것"', '"설정 하나 바꿨다니"', '"업데이트 후 달라졌다"',
+    '"이게 진짜 불편했다"', '"개봉해 보니"', '"값 보면 바로 안다"', '"리뷰 다 지웠다"'],
+  health: ['"병원에서 들은 애기"', '"이 수치부터 보세요"', '"한 달 해보니 달라졌다"', '"약 끊고 나서 생긴 일"',
+    '"검진 결과지에 적힌"', '"몸이 먼저 알려줬다"', '"그냥 넘기면 안 되는"', '"실장님이 하라는 대로"'],
+  parenting: ['"학부모들 다 이 말 해요"', '"초등 기준으로 보면"', '"아이 반응이 달랐다"', '"선생님이 하신 말씀"',
+    '"한 학기 해보니"', '"이건 미리 알아두세요"', '"학원 안 보내도"', '"형제들도 달랐다"'],
+  money: ['"신청 안 하면 못 받아요"', '"이거 모르면 손해"', '"내가 받은 금액은"', '"담당자한테 물어보니"',
+    '"마감 전에 꼭 확인"', '"생각보다 많았다"', '"국세청 답변은"', '"이번엔 조건이 달라졌다"'],
+  food: ['"여기 왜 줄 서는지 알겠다"', '"먹자마자 말 잃었다"', '"값이 아깝지 않았다"', '"재방문은 안 할 듯"',
+    '"다른 지점과 비교하니"', '"메뉴판부터 봤다"', '"사장님이 알려준"', '"웨이팅 있어도 갈 만하다"'],
+  celeb: ['"이걸 직접 공개한다고?"', '"그동안 숨긴 이유"', '"본인도 당황했다"', '"해명이 더 화제"',
+    '"이 장면 하나로"', '"소속사 입장은"', '"결국 밝혀졌다"', '"팬들 반응이 갈렸다"'],
+  generic: ['"이건 실화야?"', '"아직도 모르는"', '"해보니 달랐다"', '"그냥 넘기면 손해"',
+    '"이게 진짜 이유였다"', '"알고 보니"', '"직접 확인했다"', '"결론부터 말하면"'],
 };
 /* 주제별 코칭 예시 — 스포츠 글에 "2,000원" 같은 엉뚱한 예를 들지 않게 */
 const TS_COACH = {
@@ -1408,17 +1418,48 @@ const TS_COACH = {
   generic: { hook: '①따옴표 대화체 ②숫자 ③반전·손실 한마디', con: '숫자+단위', kw: '후기·방법·정리' },
 };
 
-/* ② 숫자·비교 구체화형에 붙일 숫자 문구 — ○ 자리에 실제 확인한 숫자를 채우게 한다(지어내지 않기) */
-const TS_NUM = {
-  sports: ['"vs 구도로 보면" ', '"기록으로 비교하면" '],
-  tech: ['"○만 원대" ', '"○개월 써보니" '],
-  health: ['"○도·○mg 기준" ', '"○주 만에" '],
-  parenting: ['"○살 기준" ', '"○개월 차" '],
-  money: ['"○만 원 차이" ', '"○개월이면" '],
-  food: ['"○,○○○원 더 내고 먹는" ', '"○곳 다 먹어봤더니" '],
-  celeb: ['"○년 만에" ', '"○년 전과 비교" '],
-  generic: ['"○가지" ', '"○년 만에" '],
+/* ② 숫자·기준형에 쓸 '기준·비교 질문' — 제목에 숫자가 없을 때 쓴다(○ 없이 말이 되게) */
+const TS_ASK = {
+  sports: ['"누가 이길까?"', '"이게 최선이었나?"', '"어디까지 갈까?"'],
+  tech: ['"값만 보면 되나?"', '"어느 쪽이 낫나?"', '"지금 사도 되나?"'],
+  health: ['"어디까지가 정상?"', '"이 정도면 괜찮나?"', '"하루 얼마까지?"'],
+  parenting: ['"몇 살부터 맞나?"', '"지금 시작해도 되나?"', '"다들 어디까지 하나?"'],
+  money: ['"얼마까지 받나?"', '"내가 받을 수 있을까?"', '"조건 맞나?"'],
+  food: ['"값만큼 하나?"', '"여기까지 먹어봤다"', '"또 갈 만한가?"'],
+  celeb: ['"무슨 일이 있었나?"', '"왜 이제야 말하나?"', '"사실일까?"'],
+  generic: ['"어디까지 맞나?"', '"지금이 맞나?"', '"그래서 결론은?"'],
 };
+/* 숫자 + 단위 → 앞 10글자 안에 바로 꿍기는 질문 (예: "2,000mg 넘기면" · "3일 지나면") */
+function tsNumHook(n) {
+  const s = String(n || '').replace(/\s+/g, '');
+  const unit = (s.match(/(년|개월|주|일|시간|분|초|만원|천원|원|억|만|kg|킬로|mg|ml|도|회|번|%|개|곳|위|명|살|배|편|컵|잔)$/) || [''])[0];
+  if (/^(년|개월|주|일|시간|분|초|회|번)$/.test(unit)) return '"' + s + ' 지나면"';
+  if (/^(kg|킬로)$/.test(unit)) return '"' + s + ' 차이"';
+  if (/^(만원|천원|원|억|만)$/.test(unit)) return '"' + s + '이면"';
+  if (/^(mg|ml|도|개|잔|컵)$/.test(unit)) return '"' + s + ' 넘기면"';
+  if (/^(%|배)$/.test(unit)) return '"' + s + ' 차이"';
+  if (/^살$/.test(unit)) return '"' + s + '살인데"';
+  if (/^(명|곳|위|편)$/.test(unit)) return '"' + s + ' 보니"';
+  return '"' + s + ' 이게 맞나"';
+}
+/* 입력 제목으로 고르는 자리(seed) — 같은 분야라도 제목마다 다른 훅이 나오게 */
+function tsSeed(s) {
+  let h = 7;
+  for (const c of tsChars(String(s || '')).slice(0, 48)) h = (h * 31 + c.charCodeAt(0)) % 1000003;
+  return h;
+}
+/* 제목 마무리 다듬기 — 붙어 버린 쉼표·중복 단어·홀따옴표 정리 */
+function tsTidy(s) {
+  let t = tsNorm(s);
+  t = t.replace(/\s*\|\s*/g, ' | ');
+  const ws = t.split(' ');
+  const out = [];
+  for (const w of ws) { if (!w) continue; if (out.length && out[out.length - 1] === w) continue; out.push(w); }
+  t = out.join(' ');
+  t = t.replace(/^[,·\s|]+|[,·\s|]+$/g, '');
+  t = t.replace(/([?!])\s*\1+/g, '$1');
+  return t.trim();
+}
 function tsTrim(s, max) {
   const t = tsNorm(s);
   if (tsChars(t).length <= max) return t;
@@ -1734,45 +1775,134 @@ function scoreHomeTitle(raw, forceKind) {
   }
   coach.sort((a, b) => (pr[a.key] == null ? 2 : pr[a.key]) - (pr[b.key] == null ? 2 : pr[b.key]));
 
-  /* ── ✨ 보완한 추천 제목 3개 — 조합 공식(앞 후킹 + 뒤 키워드) ── */
-  const bank = TS_BANK[kind] || TS_BANK.generic;
-  const numBank = TS_NUM[kind] || TS_NUM.generic;
-  let base = title;
-  if (frontSearch.length) {
-    const keep = frontSearch[0];
-    const core = toks.filter((t) => TS_KW.indexOf(t) < 0 && !/^\d/.test(t));
-    base = ((core.length ? core : toks).join(' ') + ' ' + keep).trim();
+  /* ── ✨ 보완한 추천 제목 3개 — 2026-11-21 전면 교체 ─────────────────
+     · ① 후킹 강화형 ② 숫자·기준형 ③ 조합(|)형 — 세 개는 각도가 다르다.
+     · 같은 분야에서 늘 같은 훅이 붙지 않게 입력 제목(tsSeed)으로 후보를 흩뿌린다.
+     · ○ 플레이스홀더는 쓰지 않는다 — 제목에 숫자가 있으면 그 숫자를, 없으면 '기준·질문'을 앞에 놓는다.
+     · 입력 제목에 이미 따옴표 훅이 있으면 그 훅을 살리고 순서·| 배치만 바꾼다. */
+  /* 그 분야 말이 제목에 2개 이상 걸려야 '분야 훅'을 쓰고, 아니면 어느 글에나 붙는 중립 훅을 쓴다
+     (세탁기 글에 '메뉴판부터 봤다'처럼 분야가 어긋난 훅이 붙지 않게) */
+  const kindHits = (TS_KIND_WORDS[kind] || []).filter((w) => title.indexOf(w) >= 0).length;
+  const bank = (kindHits >= 2 ? (TS_BANK[kind] || []) : []).concat(TS_BANK.generic);
+  const askBank = kindHits >= 2 ? (TS_ASK[kind] || TS_ASK.generic) : TS_ASK.generic;
+  const seed = tsSeed(title);
+  const origHook = (title.match(/["“「『]([^"”」』]{2,26})["”」』]/) || [])[1] || '';
+  const numTok = (title.match(/\d[\d,.]*\s*(?:년|개월|주|일|시간|분|초|만원|천원|원|억|만|kg|킬로|mg|ml|도|회|번|%|개|곳|위|명|살|배|편|컵|잔)/) || [''])[0].trim();
+
+  /* 뒤(검색 키워드)는 원형 그대로 — 세로줄 뒤이거나 제목 끝의 키워드 자리 */
+  const tailText = tsNorm(tailSeg || '').replace(/^\|\s*/, '');
+  /* 앞(후킹 자리) — 세로줄 앞, 없으면 제목에서 뒤 키워드를 뺀 앞부분 */
+  let frontText = hasBar ? frontSeg : title;
+  if (!hasBar && tailText && frontText.length > tailText.length) {
+    frontText = frontText.slice(0, frontText.length - tailText.length);
   }
+  const noHook = (s) => {
+    let t = String(s);
+    if (origHook) t = t.split(origHook).join(' ');
+    return tsNorm(t.replace(/["“”「」『』']/g, ' ')).replace(/\s+/g, ' ');
+  };
+  let core = noHook(frontText);
+  if (!core) core = noHook(title);
+  core = tsNorm(core).replace(/^[,·\s|]+|[,·\s|.…]+$/g, '');
   const kwTail = (tailKw[0] || allKw[0] || (names.length ? names[names.length - 1] : ''));
+
   const suggestions = [];
   const addSug = (type2, text) => {
-    const t = tsTrim(text, 64).replace(/[|\s]+$/, '');
+    const t = tsTidy(tsTrim(text, 64));
     if (!t || t === title) return;
     if (suggestions.some((s) => s.text === t)) return;
     if (suggestions.length < 3) suggestions.push({ type: type2, text: t });
   };
-  const needKw = (t2) => (kwTail && t2.indexOf(kwTail) < 0 ? t2 + ' ' + kwTail : t2);
-  /* ③는 7기 공식을 가장 노골적으로 — 세로줄(|) 앞은 후킹, 뒤는 검색 키워드 */
-  let s3 = bank[1] + base;
-  const kwList = TS_KW.slice().sort((x, y) => y.length - x.length);
-  let cut = -1;
-  for (let i = 0; i < kwList.length; i++) {
-    const w = kwList[i];
-    const at = s3.lastIndexOf(w);
-    if (at < 12) continue;
-    const after = s3.charAt(at + w.length);
-    if (after && /[가-힣]/.test(after)) continue;  /* '주식해야'처럼 단어 안쪽은 건너뛴다 */
-    cut = at; break;
-  }
-  if (s3.indexOf('|') < 0 && cut > 12) s3 = s3.slice(0, cut).trim() + ' | ' + s3.slice(cut).trim();
-  addSug('① 후킹 강화형', needKw(bank[0] + base));
-  addSug('② 숫자·비교 구체화형', needKw((hasNum ? numBank[1] : numBank[0]) + base));
-  addSug('③ 조합(앞 후킹 | 뒤 키워드)형', s3);
-  if (suggestions.length) {
-    tips.push('추천 제목은 강의 공식대로 "앞은 후킹, 뒤는 검색 키워드 원형"으로만 바꾼 같은 글입니다. 📋 복사로 바로 쓰거나 🎯 이 제목 채점으로 확인해 보세요.');
-    if (suggestions.some((s) => s.text.indexOf('○') >= 0)) {
-      tips.push('②의 ○ 자리에는 직접 확인한 숫자(가격·개월·횟수)를 넣어 주세요. 없는 숫자를 지어내면 안 됩니다.');
+  const usedHooks = [];
+  const hookWords = (h) => String(h).replace(/["“”「」『』']/g, '').split(/[^0-9A-Za-z가-힣]+/).filter((w) => tsChars(w).length >= 2);
+  /* 후보를 seed 자리부터 돌면서, 코어에 이미 있는 말과 겹치지 않는 훅을 고른다 */
+  const pickHook = (offset, coreTxt) => {
+    const flatCore = tsNorm(coreTxt).replace(/\s+/g, '');
+    /* 분야 훅을 먼저 돌고, 다 걸리면 중립 훅으로 내려간다(seed 로 시작 자리를 흩뿌린다) */
+    const kindPool = kindHits >= 2 ? (TS_BANK[kind] || []) : [];
+    const order = [];
+    for (let i = 0; i < kindPool.length; i++) order.push(kindPool[(seed + offset + i) % kindPool.length]);
+    for (let i = 0; i < TS_BANK.generic.length; i++) order.push(TS_BANK.generic[(seed + offset + i) % TS_BANK.generic.length]);
+    for (let i = 0; i < order.length; i++) {
+      const h = order[i];
+      if (usedHooks.indexOf(h) >= 0) continue;
+      const ws = hookWords(h);
+      if (ws.length && ws.every((w) => flatCore.indexOf(w) >= 0)) continue;   // 같은 말이 두 번 나오면 어색
+      usedHooks.push(h);
+      return h;
     }
+    const fb = order[(seed + offset) % order.length];
+    usedHooks.push(fb);
+    return fb;
+  };
+  /* 훅 + 코어(길이 맞춰 자름) + 뒤 검색 키워드. bar 면 세로줄로 갈라 7기 공식 그대로 */
+  const compose = (hook, coreTxt, tailTxt, bar) => {
+    const hk = hook ? String(hook).trim() + ' ' : '';
+    const tl = tailTxt ? (bar ? ' | ' + tailTxt : ' ' + tailTxt) : '';
+    const room = Math.max(10, 64 - tsChars(hk).length - tsChars(tl).length);
+    /* 뒤 키워드와 같은 말이 코어에 또 있으면 한 번만 남긴다('국민연금 … 국민연금' 방지) */
+    const tw = tailTxt ? tailTxt.split(' ').filter((w) => tsChars(w) >= 2) : [];
+    let src = tsNorm(coreTxt);
+    for (const w of tw) {
+      const re = new RegExp('(^|\\s)' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=\\s|$)', 'g');
+      const hits = (src.match(re) || []).length;
+      if (hits > 1) src = src.replace(re, ' ');
+    }
+    let c = tsTrim(tsNorm(src), room);
+    if (!c) c = tsTrim(noHook(title), room);
+    return tsTidy(hk + c + tl);
+  };
+  /* ① 후킹 강화형 — 원래 따옴표 훅이 있으면 그 훅을 살리고(새 훅을 또 붙이지 않고) 뒤만 정리 */
+  const n0 = suggestions.length;
+  if (origHook) addSug('① 후킹 강화형', compose('"' + origHook + '"', core, tailText, false));
+  if (suggestions.length === n0) addSug('① 후킹 강화형', compose(pickHook(0, core), core, tailText, false));
+  /* ② 숫자·기준형 — 제목 속 실제 숫자를 앞 10글자로 끌어온다(숫자가 없으면 기준·비교 질문) */
+  let core2 = core, hook2;
+  if (numTok) {
+    /* 제목 속 그 숫자를 앞 10글자로 끌어올린다 — 코어에서는 빼고, 바로 뒤 서술어가 붙어 있으면 같이 정리 */
+    const flat = numTok.replace(/\s+/g, '');
+    const wsC = tsNorm(core.split(numTok).join(' ').split(flat).join(' ')).split(' ');
+    while (wsC.length > 3 && /(었|았|했|였)(는데|고|서|더니|지만|다면)?$/.test(wsC[0])) wsC.shift();
+    core2 = wsC.join(' ');
+    hook2 = tsNumHook(numTok);
+  } else {
+    /* 숫자가 없으면 기준·비교 질문으로 각도를 바꾼다 */
+    hook2 = askBank[seed % askBank.length];
+  }
+  addSug('② 숫자·기준형', compose(hook2, core2 || core, tailText, false));
+  /* ③ 조합(|)형 — 앞 후킹과 뒤 검색 키워드를 세로줄로 갈라 놓는다 */
+  let barTail = tailText, core3 = core;
+  const kwForBar = tailKw[0] || allKw[0] || '';        // 실제 검색 키워드일 때만 세로줄 자리로 쓴다
+  if (!barTail && kwForBar) {
+    const at = core.lastIndexOf(kwForBar);
+    if (at > 6 && /\s/.test(core.charAt(at - 1))) {          // 코어 안의 검색 키워드 자리에서 가른다
+      barTail = core.slice(at).trim(); core3 = core.slice(0, at).trim();
+    }
+  }
+  if (!barTail) {                                            // 그래도 없으면 끝 세 마디를 뒤로
+    const ws = core.split(' ');
+    if (ws.length >= 4) {
+      let k = Math.min(3, ws.length - 1);
+      while (k > 1 && tsChars(ws[ws.length - k]).length < 2) k--;   // '그'·'속' 같은 한 글자로 시작하지 않게
+      /* '바뀐 | 얼굴'처럼 관형어(받침 ㄴ·ㄹ, 던/한/될)가 세로줄 앞에서 끊기지 않게 뒤로 넘긴다 */
+      const isMod = (w) => {
+        if (/(던|한|된|할|될|든)$/.test(w)) return true;
+        const c = w.charCodeAt(w.length - 1);
+        if (c < 0xAC00 || c > 0xD7A3) return false;
+        const jong = (c - 0xAC00) % 28;
+        return jong === 4 || jong === 8;   // ㄴ, ㄹ 받침
+      };
+      while (k < ws.length - 1 && isMod(ws[ws.length - k - 1])) k++;
+      barTail = ws.slice(ws.length - k).join(' '); core3 = ws.slice(0, ws.length - k).join(' ');
+    }
+  }
+  /* 한 글자·짧은 꼬리('될까'·'후기')만 남으면 세로줄이 오히려 어색하다 — 그때는 그냥 붙여 쓴다 */
+  if (barTail && tsChars(barTail) < 4 && barTail.split(' ').length < 2) barTail = '';
+  if (barTail) addSug('③ 조합(앞 후킹 | 뒤 키워드)형', compose(pickHook(1, core3), core3, barTail, true));
+  else addSug('③ 조합(앞 후킹 | 뒤 키워드)형', compose(pickHook(1, core), core, '', false));
+  if (suggestions.length) {
+    tips.push('추천 제목은 강의 공식대로 "앞은 후킹, 뒤는 검색 키워드 원형"으로 다시 짜 본 것입니다. 📋 복사로 바로 쓰거나 🎯 이 제목 채점으로 확인해 보세요.');
+    if (numTok) tips.push('②번은 제목에 있던 숫자("' + numTok + '")를 앞으로 끌어온 것이라 새로 지어낸 수치는 없습니다.');
   }
   if (!suggestions.length && total >= 80) tips.push('지금 제목 그대로 발행해도 좋아요. 사진 첫 장만 앞 열 글자 후킹과 맞춰 두면 클릭률이 더 올라가요.');
 
@@ -2113,28 +2243,84 @@ async function refreshMat(tab, btn) {
 /* ───────────────── 🔄 오늘 발행글 한 번에 불러오기 (2026-11-20 추가 · 같은 날 프록시 재구성) ─────────────────
    네이버 블로그 6곳의 RSS(rss.blog.naver.com/{id}.xml)를 브라우저가 직접 읽어,
    '오늘'과 '기수 안의 어제' 발행 글을 인증 달력에 자동 등록한다.
-   · 네이버 RSS 는 CORS 를 열지 않아서 프록시를 순서대로 시도한다.
-     순서는 2026-11-20 실측(실제 브라우저 · 6곳 전부)으로 정했다.
-       1) api.rss2json.com        JSON 20건 · 0.5~1.4초 · 6곳 모두 성공  ← 1순위
-       2) api.allorigins.win/get  JSON.contents(XML) · 6~20초
-       3) api.codetabs.com        XML 원문 · 5req/s 제한
-       4) api.allorigins.win/raw  XML 원문 · 큰 피드(110KB)는 25초 타임아웃이 잦다(예전 1순위였으나 폴백으로 내림)
-     · corsproxy.io 는 2026-11-20 부터 API 키를 요구(401)해 뺐다.
+   · 네이버 RSS 는 CORS 를 열지 않아서 브라우저가 직접 못 읽는다. 그래서 두 갈래로 받는다.
+       A) 같은 출처의 RSS 스냅샷  docs/data/rss_latest.json
+          — GitHub Actions(.github/workflows/rss-latest.yml)가 10분마다 6곳을 긁어 커밋한다.
+            프록시·한도·CORS 가 없어서 0.05~0.2초에 6곳 전부 온다. 2026-11-21 추가.
+       B) 실시간 프록시 — api.rss2json.com 만 지금도 살아 있다(2026-11-21 실측).
+          단 무료 한도가 '짧은 시간에 새 피드 4곳' 이라 5·6번째부터 HTTP 429.
+          allorigins(get·raw)·codetabs 는 요즘 10~15초 타임아웃이라 마지막 시도로만 남긴다.
+     순서(블로그 한 곳마다): rss2json(실시간) → 스냅샷(즉시) → 예전 프록시 → 최근 저장본.
+     · rss2json 이 429/타임아웃으로 두 번 실패하면 그 실행에서는 건너뛴다(쓸데없이 기다리지 않게).
+       남은 블로그는 스냅샷으로 0.5초 안에 채워진다.
+     · corsproxy.io 는 2026-11-20 부터 API 키를 요구(401), cors.lol·cors.eu.org·feed2json 은
+       CORS 헤더가 없거나 429 라 2026-11-21 확인 후 뺐다.
    · 발행 시각은 KST 로 바꿔 날짜를 정하고, 이미 등록된 주소·지운 글(tombstone)은 건너뛴다.
    · 점수 규칙(하루 10편까지 인정)을 넘지 않게만 채운다. */
+const RSS_SNAPSHOT_URL = 'data/rss_latest.json';      // Actions 가 10분마다 갱신(같은 출처 · CORS 없음)
+const RSS_SNAPSHOT_FRESH_MS = 45 * 60 * 1000;         // 이보다 오래되면 '오래된 스냅샷'으로 표시
 const RSS_ROUTES = [
-  { id: 'rss2json', kind: 'json', ms: 9000, make: (u) => 'https://api.rss2json.com/v1/api.json?count=20&rss_url=' + encodeURIComponent(u) },
-  { id: 'allorigins/get', kind: 'wrap', ms: 15000, make: (u) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u) },
-  { id: 'codetabs', kind: 'xml', ms: 13000, make: (u) => 'https://api.codetabs.com/v1/proxy?quest=' + u },
-  { id: 'allorigins/raw', kind: 'xml', ms: 13000, make: (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u) },
+  { id: 'rss2json', kind: 'json', ms: 7000, make: (u) => 'https://api.rss2json.com/v1/api.json?count=20&rss_url=' + encodeURIComponent(u) },
+  { id: 'allorigins/get', kind: 'wrap', ms: 12000, make: (u) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u) },
+  { id: 'codetabs', kind: 'xml', ms: 11000, make: (u) => 'https://api.codetabs.com/v1/proxy?quest=' + u },
+  { id: 'allorigins/raw', kind: 'xml', ms: 11000, make: (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u) },
 ];
-const RSS_CACHE_MS = 10 * 60 * 1000;         // 프록시 4곳이 전부 막히면 최근 10분 저장본을 쓴다(마지막 안전망)
+const RSS_CACHE_MS = 10 * 60 * 1000;         // 위가 전부 막히면 최근 10분 저장본을 쓴다(마지막 안전망)
 const RSS_STAT = {};                          // 블로그별로 실제 성공한 경로 (진단용 · 화면엔 안 보임)
+const RSS_SNAP = { p: null, blogs: null, age: null, at: '' };   // 스냅샷 1회 로드(모든 블로그가 같이 쓴다)
+const RSS_RL = { fails: 0, tripped: false, at: 0 };             // rss2json 한도(429) 회로 차단기
 
 /** 주소 정규화 — 같은 글을 다른 주소로 두 번 등록하지 않게 (쿼리·모바일 도메인 제거) */
 function urlKey(u) {
   const s = String(u || '').trim().split('#')[0].split('?')[0].replace(/\/+$/, '');
   return s.replace(/^http:\/\//i, 'https://').replace(/^https:\/\/m\.blog\.naver\.com\//i, 'https://blog.naver.com/');
+}
+
+/** 두 목록을 주소 기준으로 합친다(실시간 + 스냅샷 → 빠진 글 없이) */
+function rssMergeRows(a, b) {
+  const out = [], seen = Object.create(null);
+  for (const it of (a || []).concat(b || [])) {
+    if (!it || !it.url || !it.at) continue;
+    if (seen[it.url]) continue;
+    seen[it.url] = 1; out.push(it);
+  }
+  return out.sort((x, y) => String(x.at).localeCompare(String(y.at)));
+}
+
+/** 배포된 RSS 스냅샷(data/rss_latest.json) — 페이지당 한 번만 받아 6곳이 같이 쓴다 */
+function loadRssSnapshot() {
+  if (RSS_SNAP.p) return RSS_SNAP.p;
+  RSS_SNAP.p = (async () => {
+    try {
+      const txt = await fetchText(RSS_SNAPSHOT_URL + '?v=' + Date.now(), 6000);
+      const j = JSON.parse(txt);
+      const blogs = {};
+      const src = (j && j.blogs) || {};
+      for (const h of Object.keys(src)) {
+        const rows = [];
+        for (const it of ((src[h] && (src[h].items || src[h].rows)) || [])) {
+          const t = Array.isArray(it) ? it[0] : (it && it.title);
+          const u = Array.isArray(it) ? it[1] : (it && it.url);
+          const a = Array.isArray(it) ? it[2] : (it && it.at);
+          const title = String(t || '').replace(/\s+/g, ' ').trim();
+          const url = urlKey(u);
+          const at = String(a || '').slice(0, 16);
+          if (title && url && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(at)) rows.push({ title, url, at });
+        }
+        if (rows.length) blogs[h] = rssMergeRows(rows, []);
+      }
+      const ts = Number(j && j.generated_ts) || 0;
+      RSS_SNAP.blogs = blogs;
+      RSS_SNAP.age = ts ? Date.now() - ts : null;
+      RSS_SNAP.at = (j && j.generated_at) || '';
+      return blogs;
+    } catch (e) {
+      RSS_SNAP.blogs = RSS_SNAP.blogs || {};      // 받기 실패해도 이미 있는 건 쓴다
+      RSS_SNAP.age = null;
+      return RSS_SNAP.blogs;
+    }
+  })();
+  return RSS_SNAP.p;
 }
 
 /** RSS pubDate('Fri, 20 Nov 2026 08:30:00 +0900') → KST 'YYYY-MM-DD HH:MM' */
@@ -2180,7 +2366,64 @@ function parseRssJson(j) {
   return out;
 }
 
-/** 블로그 한 곳의 최신 글 — 프록시 4단계 폴백 + (전부 실패하면) 최근 저장본 */
+/** 블로그 한 곳의 최신 글
+ *  rss2json(실시간) → 배포 스냅샷(즉시 · 한도 없음) → 예전 프록시 → 최근 저장본(10분)
+ *  · snapRows: importTodayPosts 가 미리 받아 둔 스냅샷 목록(이 블로그 몫) */
+async function fetchBlogPosts(handle, snapRows) {
+  const rss = 'https://rss.blog.naver.com/' + handle + '.xml';
+  const errs = [];
+  let live = null;
+
+  // 1) 실시간 — rss2json 만 아직 살아 있다. 두 번 막히면 이번 실행에서는 건너뛴다.
+  const r0 = RSS_ROUTES[0];
+  if (!RSS_RL.tripped) {
+    try {
+      const rows = parseRssJson(JSON.parse(await fetchText(r0.make(rss), r0.ms)));
+      if (rows.length) live = rows;
+      else errs.push('rss2json 빈 응답');
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      errs.push('rss2json ' + msg.slice(0, 18));
+      if (/429|40[0-9]|Failed to fetch|abort|timeout/i.test(msg)) {
+        RSS_RL.fails++;
+        if (RSS_RL.fails >= 2) { RSS_RL.tripped = true; RSS_RL.at = Date.now(); }
+      }
+    }
+  } else errs.push('rss2json 건너뜀');
+
+  // 2) 배포 스냅샷 — 같은 출처라 CORS·한도가 없다(보람 0.05~0.2초)
+  const snap = (snapRows && snapRows.length) ? snapRows : null;
+  if (live) {
+    const rows = snap ? rssMergeRows(live, snap) : live;
+    RSS_STAT[handle] = snap ? 'rss2json+스냅샷' : 'rss2json';
+    rssCacheSet(handle, rows);
+    return rows;
+  }
+  if (snap) {
+    const mins = RSS_SNAP.age == null ? null : Math.round(RSS_SNAP.age / 60000);
+    RSS_STAT[handle] = '스냅샷' + (mins == null ? '' : '(' + mins + '분 전)')
+      + (RSS_SNAP.age != null && RSS_SNAP.age > RSS_SNAPSHOT_FRESH_MS ? '·오래됨' : '');
+    rssCacheSet(handle, snap);
+    return snap;
+  }
+
+  // 3) 예전 프록시 — 요즘은 거의 타임아웃이지만 혹시 모를 길이라 남긴다
+  for (const r of RSS_ROUTES.slice(1)) {
+    try {
+      const txt = await fetchText(r.make(rss), r.ms);
+      let rows;
+      if (r.kind === 'json') rows = parseRssJson(JSON.parse(txt));
+      else if (r.kind === 'wrap') { const j = JSON.parse(txt); rows = parseRssXml((j && (j.contents || j.body)) || ''); }
+      else rows = parseRssXml(txt);
+      if (rows && rows.length) { rssCacheSet(handle, rows); RSS_STAT[handle] = r.id; return rows; }
+      errs.push(r.id + ' 빈 응답');
+    } catch (e) { errs.push(r.id + ' ' + String((e && e.message) || e).slice(0, 20)); }
+  }
+  // 4) 마지막 안전망 — 10분 안에 성공한 저장본
+  const old = rssCacheGet(handle);
+  if (old) { RSS_STAT[handle] = '저장본(10분 내)'; return old; }
+  throw new Error(errs.join(' / ') || '결과 없음');
+}
 function rssCacheGet(h) {
   try {
     const j = JSON.parse(localStorage.getItem('yc.rss.' + h) || 'null');
@@ -2192,28 +2435,10 @@ function rssCacheSet(h, rows) {
   try { localStorage.setItem('yc.rss.' + h, JSON.stringify({ at: Date.now(), rows: rows.slice(-60) })); } catch { /* 용량 초과는 무시 */ }
 }
 
-async function fetchBlogPosts(handle) {
-  const rss = 'https://rss.blog.naver.com/' + handle + '.xml';
-  const errs = [];
-  for (const r of RSS_ROUTES) {
-    try {
-      const txt = await fetchText(r.make(rss), r.ms);
-      let rows;
-      if (r.kind === 'json') rows = parseRssJson(JSON.parse(txt));
-      else if (r.kind === 'wrap') { const j = JSON.parse(txt); rows = parseRssXml((j && (j.contents || j.body)) || ''); }
-      else rows = parseRssXml(txt);
-      if (rows && rows.length) { rssCacheSet(handle, rows); RSS_STAT[handle] = r.id; return rows; }
-      errs.push(r.id + ' 빈 응답');
-    } catch (e) { errs.push(r.id + ' ' + String((e && e.message) || e).slice(0, 20)); }
-  }
-  // 마지막 안전망 — 10분 안에 성공한 저장본이 있으면 그걸 쓴다(방금 올린 글은 놓칠 수 있음)
-  const old = rssCacheGet(handle);
-  if (old) { RSS_STAT[handle] = '저장본(10분 내)'; return old; }
-  throw new Error(errs.join(' / ') || '결과 없음');
-}
-
 /** 6곳을 한 번에 불러와 오늘(및 기수 안의 어제) 글을 자동 등록
- *  · 프록시 rate limit 을 피하려고 2곳씩 끊어 220ms 간격으로 부른다(6곳 동시 호출 금지)
+ *  · 먼저 배포 스냅샷을 한 번 받아 둔다(모든 블로그 공통 · 실패해도 나머지는 그대로 진행)
+ *  · 실시간 프록시 rate limit 을 피하려고 2곳씩 끊어 220ms 간격으로 부른다(6곳 동시 호출 금지)
+ *  · rss2json 이 막힌 블로그는 스냅샷으로 바로(0.5초 안에) 채운다
  *  · 그래도 실패한 곳만 0.6초 뒤 1회 더 시도한다 */
 async function importTodayPosts(btn) {
   const s = APP.state, round = activeRound();
@@ -2223,18 +2448,36 @@ async function importTodayPosts(btn) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const setBusy = (txt) => { if (btn && btn.isConnected) btn.textContent = txt; };
 
+  // 429 회로 차단기는 5분 지나면 한 번씩 다시 열어 본다
+  if (RSS_RL.tripped && RSS_RL.at && Date.now() - RSS_RL.at > 5 * 60 * 1000) {
+    RSS_RL.tripped = false; RSS_RL.fails = 0;
+  }
+
+  // 스냅샷은 백그라운드로 먼저 띄워 두고, 2.5초까지만 기다린다(그 뒤엔 이미 받은 만큼)
+  const snapP = loadRssSnapshot();
+  await Promise.race([snapP, sleep(2500)]);
+  const snapMap = RSS_SNAP.blogs || {};
+
   const today = kstDate();
   const dates = [today];
   const yest = addDays(today, -1);
   if (roundDays(round).includes(yest)) dates.push(yest);   // 기수 안의 어제 글도 빈 칸이면 채운다
 
-  const blogs = s.blogs;
+  /* 매번 다른 블로그부터 시작한다 — rss2json 은 '짧은 시간 새 피드 4곳'만 열어 줘서
+     늘 같은 4곳만 실시간이 되기 때문. 누른 횟수만큼 순서를 돌려 6곳이 번갈아 실시간이 된다. */
+  let rot = 0;
+  try {
+    rot = (parseInt(localStorage.getItem('yc.rssrot') || '0', 10) || 0) + 1;
+    localStorage.setItem('yc.rssrot', String(rot));
+  } catch { rot = Math.floor(Date.now() / 60000) % 6; }
+  const nB = Math.max(1, s.blogs.length), r0 = rot % nB;
+  const blogs = s.blogs.slice(r0).concat(s.blogs.slice(0, r0));
   const GAP_MS = 220, BATCH = 2;
   const got = new Array(blogs.length).fill(null);
   for (let i = 0; i < blogs.length; i += BATCH) {
     const grp = blogs.slice(i, i + BATCH);
     setBusy('⏳ ' + (i + 1) + '~' + (i + grp.length) + '/' + blogs.length + '곳 불러오는 중…');
-    const res = await Promise.allSettled(grp.map((b) => fetchBlogPosts(b.handle || b.id)));
+    const res = await Promise.allSettled(grp.map((b) => fetchBlogPosts(b.handle || b.id, snapMap[b.handle || b.id])));
     res.forEach((r, k) => { got[i + k] = r; });
     if (i + BATCH < blogs.length) await sleep(GAP_MS);
   }
@@ -2244,7 +2487,7 @@ async function importTodayPosts(btn) {
     setBusy('⏳ ' + miss.length + '곳 다시 시도 중…');
     await sleep(600);
     for (const i of miss) {                                  // 재시도도 한 곳씩(간격 200ms)
-      try { got[i] = { status: 'fulfilled', value: await fetchBlogPosts(blogs[i].handle || blogs[i].id) }; }
+      try { got[i] = { status: 'fulfilled', value: await fetchBlogPosts(blogs[i].handle || blogs[i].id, snapMap[blogs[i].handle || blogs[i].id]) }; }
       catch { /* 실패로 남긴다 */ }
       await sleep(200);
     }
@@ -2274,17 +2517,22 @@ async function importTodayPosts(btn) {
   if (btn) { btn.disabled = false; delete btn.dataset.busy; btn.textContent = label || '🔄 오늘 발행글 한 번에 불러오기'; }
 
   const failTxt = fails.length ? ' · ' + fails.join('·') + ' ' + fails.length + '곳은 다시' : '';
+  /* 실시간이 아닌 '배포 스냅샷'으로 채운 곳이 많고 그 스냅샷이 오래됐으면 한 번 더 누르라고 알려 준다 */
+  const snapOnly = Object.keys(RSS_STAT).filter((h) => String(RSS_STAT[h]).indexOf('스냅샷') >= 0 && String(RSS_STAT[h]).indexOf('rss2json') < 0).length;
+  const staleTxt = (snapOnly && RSS_SNAP.age != null && RSS_SNAP.age > 45 * 60 * 1000)
+    ? ' · ' + snapOnly + '곳은 ' + Math.round(RSS_SNAP.age / 60000) + '분 전 목록이라 한 번 더 누르면 최신이에요' : '';
   if (total) {
     saveLocal(); queuePush(); renderAll();
     const head = parts.slice(0, 3).join(' · ') + (parts.length > 3 ? ' 등' : '');
-    toast(head + ' 총 ' + total + '편 불러왔어요' + failTxt, fails.length ? 4000 : 2600);
+    toast(head + ' 총 ' + total + '편 불러왔어요' + failTxt + staleTxt, (fails.length || staleTxt) ? 4200 : 2600);
   } else if (fails.length) {
     toast(fails.length + '곳을 못 불러왔어요(' + fails.join('·') + ') · 잠시 뒤 다시 눌러 주세요', 4200);
   } else {
     toast((over ? '오늘 치는 다 찼어요' : '새로 등록할 글이 없어요 · 이미 다 등록됐어요') + ' (' + blogs.length + '곳 모두 확인)', 2600);
   }
-  try { console.info('[RSS] 경로', JSON.stringify(RSS_STAT)); } catch { /* 무시 */ }
-  return { total, parts, fails, skipped, over, routes: Object.assign({}, RSS_STAT) };
+  try { console.info('[RSS] 경로', JSON.stringify(RSS_STAT), '스냅샷', RSS_SNAP.at || '없음'); } catch { /* 무시 */ }
+  return { total, parts, fails, skipped, over, routes: Object.assign({}, RSS_STAT),
+           snapAt: RSS_SNAP.at || '', snapAge: RSS_SNAP.age };
 }
 
 /* ───────────────────────── 시트 ───────────────────────── */
