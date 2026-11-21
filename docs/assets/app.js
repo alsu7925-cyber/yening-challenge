@@ -2453,10 +2453,9 @@ async function importTodayPosts(btn) {
     RSS_RL.tripped = false; RSS_RL.fails = 0;
   }
 
-  // 스냅샷은 백그라운드로 먼저 띄워 두고, 2.5초까지만 기다린다(그 뒤엔 이미 받은 만큼)
-  const snapP = loadRssSnapshot();
-  await Promise.race([snapP, sleep(2500)]);
-  const snapMap = RSS_SNAP.blogs || {};
+  // 스냅샷은 먼저 띄워 두고 끝까지 기다린다 — 같은 출처라 보통 0.1~0.3초(느려도 6초에서 끊긴다).
+  //   여기서 기다리지 않으면 rss2json 의 '캐시된 옛 목록'만으로 채워져 방금 올린 글이 빠진다.
+  const snapMap = (await loadRssSnapshot().catch(() => ({}))) || RSS_SNAP.blogs || {};
 
   const today = kstDate();
   const dates = [today];
