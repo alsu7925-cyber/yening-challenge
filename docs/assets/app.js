@@ -2376,34 +2376,34 @@ async function fetchBlogPosts(handle, snapRows) {
   const errs = [];
   let live = null;
 
-  // 1) 실시간 — rss2json 시도 후 막히거나 429면 r.jina.ai(CORS+raw XML)로 즉시 보충
-  const r0 = RSS_ROUTES[0];
-  if (!RSS_RL.tripped) {
-    try {
-      const rows = parseRssJson(JSON.parse(await fetchText(r0.make(rss), r0.ms)));
-      if (rows.length) live = rows;
-      else errs.push('rss2json 빈 응답');
-    } catch (e) {
-      const msg = String((e && e.message) || e);
-      errs.push('rss2json ' + msg.slice(0, 18));
-      if (/429|40[0-9]|Failed to fetch|abort|timeout/i.test(msg)) {
-        RSS_RL.fails++;
-        if (RSS_RL.fails >= 2) { RSS_RL.tripped = true; RSS_RL.at = Date.now(); }
-      }
-    }
-  } else errs.push('rss2json 건너뜀');
+  // 1) 실시간 — r.jina.ai(CORS+raw XML, 캐시 없음) 최우선 시도 후 실패 시 rss2json 폴백
+  try {
+    const xml = await fetchText(JINA + rss, 12000, { 'X-Return-Format': 'html' });
+    const rows = parseRssXml(xml);
+    if (rows.length) {
+      live = rows;
+      RSS_STAT[handle] = 'jina.ai';
+    } else errs.push('jina.ai 빈 응답');
+  } catch (e) {
+    errs.push('jina.ai ' + String((e && e.message) || e).slice(0, 18));
+  }
 
   if (!live) {
-    try {
-      const xml = await fetchText(JINA + rss, 12000, { 'X-Return-Format': 'html' });
-      const rows = parseRssXml(xml);
-      if (rows.length) {
-        live = rows;
-        RSS_STAT[handle] = 'jina.ai';
-      } else errs.push('jina.ai 빈 응답');
-    } catch (e) {
-      errs.push('jina.ai ' + String((e && e.message) || e).slice(0, 18));
-    }
+    const r0 = RSS_ROUTES[0];
+    if (!RSS_RL.tripped) {
+      try {
+        const rows = parseRssJson(JSON.parse(await fetchText(r0.make(rss), r0.ms)));
+        if (rows.length) live = rows;
+        else errs.push('rss2json 빈 응답');
+      } catch (e) {
+        const msg = String((e && e.message) || e);
+        errs.push('rss2json ' + msg.slice(0, 18));
+        if (/429|40[0-9]|Failed to fetch|abort|timeout/i.test(msg)) {
+          RSS_RL.fails++;
+          if (RSS_RL.fails >= 2) { RSS_RL.tripped = true; RSS_RL.at = Date.now(); }
+        }
+      }
+    } else errs.push('rss2json 건너뜀');
   }
 
   // 2) 배포 스냅샷 — 같은 출처라 CORS·한도가 없다(보람 0.05~0.2초)
