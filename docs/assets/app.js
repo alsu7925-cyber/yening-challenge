@@ -3662,9 +3662,8 @@ function ftSentences(plain) {
 function ftPickSentence(txt) {
   const plain = String(txt).replace(/\*\*|==/g, '');
   const sents = ftSentences(plain);
-  let pick = sents.find((s) => /\d/.test(s));
-  if (!pick) pick = sents.find((s) => FT_KEYS.test(s));
-  if (!pick) pick = ftFallbackSentence(sents, plain);
+  let pick = sents.find((s) => /\d/.test(s) && s.length <= 65);
+  if (!pick) pick = sents.find((s) => FT_KEYS.test(s) && s.length <= 65);
   return pick || null;
 }
 
@@ -3753,31 +3752,31 @@ function ftAutoHl(blocks) {
   }
   if (cur.length) sections.push({ idxs: cur, intro: !headSeen });
 
+  let totalHl = 0;
+  out.forEach((bk) => { if (bk.t === 'p') totalHl += ftHlCount(bk.s); });
+  const MAX_AUTO_HL = 5;
+
   sections.forEach((sec) => {
+    if (sec.intro) return;                                            // 도입부는 자동 형광펜 제외
+    if (totalHl >= MAX_AUTO_HL) return;
     const idxs = sec.idxs.filter((i) => ftHlable(out[i], i, sec.intro));
     if (!idxs.length) return;
-    const want = idxs.length >= 2 ? 2 : 1;
+    const want = 1;
     let have = 0;
     idxs.forEach((i) => { have += ftHlCount(out[i].s); });
-    let guard = 0;
-    while (have < want && guard < 4) {                                // 한 문단에 최대 2개까지, 더 필요하면 다시
-      let moved = false;
-      const order = idxs.slice().sort((a, b) => (ftHlCount(out[a].s) - ftHlCount(out[b].s)) || (a - b));
-      for (let k = 0; k < order.length && have < want; k++) {
-        const i = order[k];
-        const raw = String(out[i].s);
-        if (ftHlCount(raw) >= 2) continue;                            // 한 문단에 2개를 넘기지 않는다
-        const src = raw.indexOf('==') >= 0 ? raw.replace(/==[^=]*==/g, ' ') : raw;   // 이미 칠한 문장은 다시 고르지 않게
-        const pick = ftPickSentence(src);
-        if (!pick) continue;
-        const marked = ftMarkSentence(raw, pick);
-        if (marked === raw) continue;
-        out[i] = Object.assign({}, out[i], { s: marked });
-        have += 1;
-        moved = true;
-      }
-      if (!moved) break;
-      guard += 1;
+    if (have >= want) return;
+    for (let k = 0; k < idxs.length && have < want && totalHl < MAX_AUTO_HL; k++) {
+      const i = idxs[k];
+      const raw = String(out[i].s);
+      if (ftHlCount(raw) >= 1) continue;
+      const src = raw.indexOf('==') >= 0 ? raw.replace(/==[^=]*==/g, ' ') : raw;
+      const pick = ftPickSentence(src);
+      if (!pick) continue;
+      const marked = ftMarkSentence(raw, pick);
+      if (marked === raw) continue;
+      out[i] = Object.assign({}, out[i], { s: marked });
+      have += 1;
+      totalHl += 1;
     }
   });
   return out;
